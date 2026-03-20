@@ -46,8 +46,19 @@ class TenantRepository(Generic[T]):
         if not organization_id:
             raise ValueError("organization_id is required for tenant repository")
         
-        self.organization_id = organization_id
+        # SECURITY: Store org_id as private immutable attribute
+        self._organization_id = organization_id
         self._db: Optional[AsyncIOMotorDatabase] = None
+    
+    @property
+    def organization_id(self) -> str:
+        """Get the organization ID (read-only)."""
+        return self._organization_id
+    
+    @organization_id.setter
+    def organization_id(self, value):
+        """Prevent modification of organization_id after creation."""
+        raise AttributeError("organization_id is immutable and cannot be changed")
     
     async def _get_collection(self) -> AsyncIOMotorCollection:
         """Get the MongoDB collection for this repository."""

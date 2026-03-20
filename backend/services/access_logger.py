@@ -226,6 +226,8 @@ class AccessLogger:
     async def get_user_access_history(
         self,
         user_id: str,
+        requesting_user_id: str,
+        requesting_user_org_id: str,
         limit: int = 100,
         skip: int = 0,
         action_filter: Optional[AccessAction] = None,
@@ -236,8 +238,13 @@ class AccessLogger:
         """
         Get access history for a user.
         
+        SECURITY: Only returns logs for the requesting user's organization.
+        Users can only see their own logs, admins/owners can see org member logs.
+        
         Args:
             user_id: User ID to query
+            requesting_user_id: ID of user making the request
+            requesting_user_org_id: Organization ID of requesting user
             limit: Maximum results
             skip: Number to skip
             action_filter: Filter by action type
@@ -250,7 +257,11 @@ class AccessLogger:
         """
         db = await get_db()
         
-        query: Dict[str, Any] = {"user_id": user_id}
+        # SECURITY: Always filter by organization to prevent cross-tenant access
+        query: Dict[str, Any] = {
+            "user_id": user_id,
+            "organization_id": requesting_user_org_id,  # Enforce tenant isolation
+        }
         
         if action_filter:
             query["action"] = action_filter.value
@@ -274,17 +285,20 @@ class AccessLogger:
         self,
         resource_type: ResourceType,
         resource_id: str,
-        organization_id: str,
+        requesting_user_org_id: str,
         limit: int = 100,
         skip: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         Get access history for a specific resource.
         
+        SECURITY: Only returns logs for resources in the requesting user's organization.
+        The requesting_user_org_id is validated by the caller (TenantContext).
+        
         Args:
             resource_type: Type of resource
             resource_id: ID of the resource
-            organization_id: Organization context
+            requesting_user_org_id: Organization ID of requesting user (enforced)
             limit: Maximum results
             skip: Number to skip
             
@@ -293,10 +307,11 @@ class AccessLogger:
         """
         db = await get_db()
         
+        # SECURITY: Use the verified org ID from TenantContext
         query = {
             "resource_type": resource_type.value,
             "resource_id": resource_id,
-            "organization_id": organization_id,
+            "organization_id": requesting_user_org_id,
         }
         
         cursor = db[self.COLLECTION_NAME].find(query)

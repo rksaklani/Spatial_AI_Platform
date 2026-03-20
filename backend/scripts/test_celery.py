@@ -10,10 +10,10 @@ from workers.base_task import SpatialAIBaseTask
 def test_config():
     print("Testing Celery Configuration...")
     
-    # Check Broker URL
+    # Check Broker URL (uses redis:// protocol - Valkey is Redis-compatible)
     broker = celery_app.conf.broker_url
     print(f"Broker: {broker}")
-    assert broker.startswith("valkey://"), "Broker URL should use valkey://"
+    assert broker.startswith("redis://"), "Broker URL should use redis:// (Valkey is Redis-compatible)"
     
     # Check Task Queues
     queues = {q.name: q for q in celery_app.conf.task_queues}

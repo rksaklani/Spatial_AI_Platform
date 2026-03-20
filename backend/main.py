@@ -14,6 +14,8 @@ from utils.logger import setup_logging
 from api.health import router as health_router
 from api.auth import router as auth_router
 from api.organizations import router as org_router
+from api.scenes import router as scenes_router
+from api.import_3d import router as import_router
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -103,6 +105,8 @@ Instrumentator().instrument(app).expose(app)
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(org_router, prefix="/api/v1", tags=["Organizations"])
+app.include_router(scenes_router, prefix="/api/v1", tags=["Scenes"])
+app.include_router(import_router, prefix="/api/v1/scenes", tags=["3D Import"])
 
 
 @app.get("/")

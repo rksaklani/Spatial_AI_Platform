@@ -105,6 +105,16 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Get the current authenticated user's information.
+    """
+    return current_user
+
+
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
     current_user: UserResponse = Depends(get_current_user),
@@ -135,12 +145,19 @@ async def logout(
     return {"message": "Successfully logged out"}
 
 
+from pydantic import BaseModel
+
+class RefreshTokenRequest(BaseModel):
+    """Request body for token refresh."""
+    refresh_token: str
+
+
 @router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_token: str):
+async def refresh_token_endpoint(request: RefreshTokenRequest):
     """Grants a new access token and refresh token when given a valid refresh token."""
     try:
         payload = jwt.decode(
-            refresh_token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+            request.refresh_token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
         )
         token_data = TokenPayload(**payload)
         

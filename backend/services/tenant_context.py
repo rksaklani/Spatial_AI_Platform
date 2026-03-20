@@ -131,6 +131,8 @@ async def get_tenant_context(
             scenes = await ctx.scenes.find_many({"status": "completed"})
             return scenes
     """
+    from datetime import datetime
+    
     if not current_user.organization_id:
         logger.warning(
             "tenant_context_missing_org",
@@ -141,8 +143,26 @@ async def get_tenant_context(
             detail="Active organization required. Please create or join an organization."
         )
     
-    # Fetch organization details
     db = await get_db()
+    
+    # SECURITY: Verify user is still a member (membership could have been removed)
+    membership = await db.organization_members.find_one({
+        "organization_id": current_user.organization_id,
+        "user_id": current_user.id
+    })
+    
+    if not membership:
+        logger.warning(
+            "tenant_context_membership_not_found",
+            user_id=current_user.id,
+            organization_id=current_user.organization_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are no longer a member of this organization."
+        )
+    
+    # Fetch organization details
     org = await db.organizations.find_one({"_id": current_user.organization_id})
     
     if not org:
@@ -167,9 +187,27 @@ async def get_tenant_context(
             detail="Organization is inactive. Please contact support."
         )
     
+    # SECURITY: Check trial expiration
+    trial_expires = org.get("trial_expires_at")
+    subscription_tier = org.get("subscription_tier", "free_trial")
+    
+    if subscription_tier == "free_trial" and trial_expires:
+        if isinstance(trial_expires, datetime) and trial_expires < datetime.utcnow():
+            logger.warning(
+                "tenant_context_trial_expired",
+                user_id=current_user.id,
+                organization_id=current_user.organization_id,
+                trial_expires_at=trial_expires.isoformat()
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your free trial has expired. Please upgrade to continue."
+            )
+    
     # Store in request state for access logging
     request.state.organization_id = org["_id"]
     request.state.user_id = current_user.id
+    request.state.user_role = membership.get("role")
     
     return TenantContext(
         user=current_user,
@@ -199,17 +237,38 @@ async def get_optional_tenant_context(
                 # User doesn't have organization
                 pass
     """
+    from datetime import datetime
+    
     if not current_user.organization_id:
         return None
     
     db = await get_db()
+    
+    # SECURITY: Verify user is still a member
+    membership = await db.organization_members.find_one({
+        "organization_id": current_user.organization_id,
+        "user_id": current_user.id
+    })
+    
+    if not membership:
+        return None
+    
     org = await db.organizations.find_one({"_id": current_user.organization_id})
     
     if not org or not org.get("is_active", True):
         return None
     
+    # Check trial expiration
+    trial_expires = org.get("trial_expires_at")
+    subscription_tier = org.get("subscription_tier", "free_trial")
+    
+    if subscription_tier == "free_trial" and trial_expires:
+        if isinstance(trial_expires, datetime) and trial_expires < datetime.utcnow():
+            return None
+    
     request.state.organization_id = org["_id"]
     request.state.user_id = current_user.id
+    request.state.user_role = membership.get("role")
     
     return TenantContext(
         user=current_user,

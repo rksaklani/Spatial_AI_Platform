@@ -269,18 +269,31 @@ async def delete_organization(
     """
     db = await get_db()
     
-    # Check if user is owner
-    org = await db.organizations.find_one({"_id": organization_id})
-    if not org:
+    # SECURITY: First check membership to avoid leaking org existence
+    membership = await db.organization_members.find_one({
+        "organization_id": organization_id,
+        "user_id": current_user.id
+    })
+    
+    if not membership:
+        # Generic error to prevent organization ID probing
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Organization not found"
         )
     
-    if org["owner_id"] != current_user.id:
+    if membership["role"] != "owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can delete an organization"
+        )
+    
+    # Now safe to fetch org details
+    org = await db.organizations.find_one({"_id": organization_id})
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
         )
     
     # Soft delete
@@ -396,11 +409,12 @@ async def add_member(
         )
     
     # Find user by email
+    # SECURITY: Use generic error to prevent email enumeration
     user = await db.users.find_one({"email": request.user_email})
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found with that email"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to add member. The user may not exist or may already be a member."
         )
     
     # Check if already a member

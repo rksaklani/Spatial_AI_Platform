@@ -31,9 +31,9 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7
     
-    # Celery
-    celery_broker_url: str = "valkey://localhost:6379/0"
-    celery_result_backend: str = "valkey://localhost:6379/0"
+    # Celery (use redis:// as transport - Valkey is Redis-protocol compatible)
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
     
     # API
     api_host: str = "0.0.0.0"
