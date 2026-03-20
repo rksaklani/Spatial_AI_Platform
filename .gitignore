@@ -1,0 +1,43 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node
+node_modules/
+dist/
+build/
+
+# Env files (VERY IMPORTANT)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# OpenClaw / temp
+.kiro/
+sessions/
+
+# Docker
+*.pid
+*.seed
+
+# Test / cache
+.pytest_cache/
+.coverage
+
+# Misc
+*.sqlite3
+*.db
