@@ -6,6 +6,8 @@ import os
 import pytest
 from typing import AsyncGenerator, Generator
 from unittest.mock import MagicMock, AsyncMock, patch
+from bson import ObjectId
+from datetime import datetime
 
 # Set test environment variables before importing app modules
 os.environ.setdefault("ENVIRONMENT", "test")
@@ -136,3 +138,164 @@ def sample_user_in_db():
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
+
+
+# ============================================================================
+# Database Fixtures
+# ============================================================================
+
+@pytest.fixture
+async def test_db():
+    """Get test database instance."""
+    from utils.database import Database
+    db = Database.get_db()
+    yield db
+    # Cleanup after tests
+    # Note: In production tests, you might want to clean up test data
+
+
+@pytest.fixture
+async def test_organization(test_db):
+    """Create a test organization."""
+    org_id = str(ObjectId())
+    org = {
+        "_id": org_id,
+        "name": "Test Organization",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    await test_db.organizations.insert_one(org)
+    yield org
+    # Cleanup
+    await test_db.organizations.delete_one({"_id": org_id})
+
+
+@pytest.fixture
+async def test_user(test_db, test_organization):
+    """Create a test user."""
+    user_id = str(ObjectId())
+    user = {
+        "_id": user_id,
+        "organization_id": test_organization["_id"],
+        "email": "testuser@example.com",
+        "name": "Test User",
+        "hashed_password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.I0Z0wDfYj6z",
+        "is_active": True,
+        "created_at": datetime.utcnow()
+    }
+    await test_db.users.insert_one(user)
+    yield user
+    # Cleanup
+    await test_db.users.delete_one({"_id": user_id})
+
+
+@pytest.fixture
+def auth_headers(test_user):
+    """Generate authentication headers for test user."""
+    from utils.security import create_access_token
+    
+    # Create JWT token for test user
+    token = create_access_token(
+        data={"sub": test_user["_id"], "email": test_user["email"]}
+    )
+    
+    return {
+        "Authorization": f"Bearer {token}"
+    }
+
+
+# ============================================================================
+# HTTP Client Fixtures
+# ============================================================================
+
+@pytest.fixture
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    """
+    Async HTTP client for API tests.
+    This is the main client fixture that tests should use.
+    """
+    from main import app
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+# ============================================================================
+# Mock Service Fixtures (for tests without infrastructure)
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def mock_valkey_for_collaboration():
+    """
+    Mock Valkey client for collaboration tests.
+    This runs automatically for all tests to avoid Valkey connection issues.
+    """
+    from unittest.mock import MagicMock
+    
+    class MockValkeyClient:
+        """Mock Valkey client that simulates Redis operations."""
+        
+        def __init__(self):
+            self.data = {}
+            self.sets = {}
+            self.expirations = {}
+        
+        def ping(self):
+            return True
+        
+        def setex(self, key, ttl, value):
+            self.data[key] = value
+            self.expirations[key] = ttl
+            return True
+        
+        def get(self, key):
+            return self.data.get(key)
+        
+        def set(self, key, value):
+            self.data[key] = value
+            return True
+        
+        def delete(self, key):
+            if key in self.data:
+                del self.data[key]
+            if key in self.expirations:
+                del self.expirations[key]
+            return 1
+        
+        def sadd(self, key, *values):
+            if key not in self.sets:
+                self.sets[key] = set()
+            for value in values:
+                self.sets[key].add(value)
+            return len(values)
+        
+        def srem(self, key, *values):
+            if key in self.sets:
+                for value in values:
+                    self.sets[key].discard(value)
+            return len(values)
+        
+        def smembers(self, key):
+            return list(self.sets.get(key, set()))
+        
+        def scard(self, key):
+            return len(self.sets.get(key, set()))
+        
+        def expire(self, key, ttl):
+            self.expirations[key] = ttl
+            return True
+        
+        def exists(self, key):
+            return 1 if key in self.data else 0
+        
+        def keys(self, pattern):
+            import fnmatch
+            return [k for k in self.data.keys() if fnmatch.fnmatch(k, pattern)]
+    
+    mock_client = MockValkeyClient()
+    
+    # Patch the Valkey client getter
+    with patch('utils.valkey_client.get_valkey_client', return_value=mock_client):
+        # Also patch any direct imports
+        with patch('services.collaboration.get_valkey_client', return_value=mock_client):
+            yield mock_client

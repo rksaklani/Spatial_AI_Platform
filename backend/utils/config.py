@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    base_url: str = "http://localhost:8000"
     cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     
     # Environment
@@ -49,3 +50,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get application settings instance."""
+    return settings

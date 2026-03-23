@@ -222,10 +222,15 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         filter_result = filter_frames(frames_dir)
         valid_frames = filter_result["valid_frames"]
         valid_count = len(valid_frames)
+        avg_motion = filter_result.get("average_motion_score", 0.0)
         
         logger.info(f"Valid frames after filtering: {valid_count}/{frame_count}")
+        logger.info(f"Average motion score: {avg_motion:.2f}")
         update_scene_status(scene_id, "estimating_poses", f"Filtered to {valid_count} valid frames",
-                          metrics={"valid_frame_count": valid_count})
+                          metrics={
+                              "valid_frame_count": valid_count,
+                              "average_motion_score": avg_motion
+                          })
         
         # Step 4: Upload frames to MinIO
         update_job_progress(job_id, "running", 35, "uploading_frames", "Uploading frames to storage")
@@ -398,15 +403,16 @@ def extract_frames(video_path: str, output_dir: str, fps: int = 3) -> Dict[str, 
 
 def filter_frames(frames_dir: str) -> Dict[str, Any]:
     """
-    Filter frames based on blur and motion scores.
+    Filter frames based on blur and motion scores, then select frames for maximum coverage.
     
-    Removes blurry frames and ensures spatial coverage.
+    Removes blurry frames, calculates motion scores using optical flow,
+    and selects frames that maximize spatial coverage of the scene.
     
     Args:
         frames_dir: Directory containing extracted frames
         
     Returns:
-        Dict with list of valid frame filenames
+        Dict with list of valid frame filenames and metrics
     """
     import cv2
     import numpy as np
@@ -417,44 +423,178 @@ def filter_frames(frames_dir: str) -> Dict[str, Any]:
     ])
     
     frame_scores = []
+    prev_gray = None
     
+    # Step 1: Calculate blur and motion scores
     for filename in frame_files:
         filepath = os.path.join(frames_dir, filename)
         
         # Read image
-        img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(filepath)
         if img is None:
             continue
         
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
         # Calculate Laplacian variance (blur score)
         # Higher = sharper
-        laplacian_var = cv2.Laplacian(img, cv2.CV_64F).var()
+        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+        
+        # Calculate motion score using optical flow
+        motion_score = 0.0
+        if prev_gray is not None:
+            # Calculate dense optical flow
+            flow = cv2.calcOpticalFlowFarneback(
+                prev_gray, gray,
+                None,
+                pyr_scale=0.5,
+                levels=3,
+                winsize=15,
+                iterations=3,
+                poly_n=5,
+                poly_sigma=1.2,
+                flags=0
+            )
+            
+            # Calculate magnitude of flow vectors
+            magnitude = np.sqrt(flow[..., 0]**2 + flow[..., 1]**2)
+            motion_score = float(np.mean(magnitude))
         
         frame_scores.append({
             "filename": filename,
+            "filepath": filepath,
             "blur_score": laplacian_var,
+            "motion_score": motion_score,
+            "gray": gray,  # Keep for coverage analysis
         })
+        
+        prev_gray = gray
     
-    # Filter out blurry frames (keep frames with blur score > threshold)
-    blur_threshold = 100  # Adjust based on testing
-    valid_frames = [
-        f["filename"] for f in frame_scores
+    # Step 2: Filter out blurry frames
+    blur_threshold = 100
+    quality_frames = [
+        f for f in frame_scores
         if f["blur_score"] > blur_threshold
     ]
     
     # If too many frames filtered, be more lenient
-    if len(valid_frames) < len(frame_files) * 0.3:
-        # Sort by blur score and take top 50%
+    if len(quality_frames) < len(frame_files) * 0.3:
         sorted_frames = sorted(frame_scores, key=lambda x: x["blur_score"], reverse=True)
-        valid_frames = [f["filename"] for f in sorted_frames[:len(sorted_frames) // 2]]
+        quality_frames = sorted_frames[:len(sorted_frames) // 2]
     
-    logger.info(f"Frame filtering: {len(valid_frames)}/{len(frame_files)} frames kept")
+    # Step 3: Coverage-based frame selection
+    # Divide image into grid and track which cells are covered
+    selected_frames = select_frames_by_coverage(quality_frames, target_reduction=0.3)
+    
+    # Calculate metrics
+    avg_motion = np.mean([f["motion_score"] for f in selected_frames]) if selected_frames else 0.0
+    reduction_percent = (1 - len(selected_frames) / len(frame_files)) * 100 if frame_files else 0
+    
+    logger.info(f"Frame filtering: {len(selected_frames)}/{len(frame_files)} frames kept ({reduction_percent:.1f}% reduction)")
+    logger.info(f"Average motion score: {avg_motion:.2f}")
     
     return {
-        "valid_frames": valid_frames,
+        "valid_frames": [f["filename"] for f in selected_frames],
         "total_frames": len(frame_files),
-        "filtered_count": len(frame_files) - len(valid_frames),
+        "filtered_count": len(frame_files) - len(selected_frames),
+        "reduction_percent": reduction_percent,
+        "average_motion_score": avg_motion,
     }
+
+
+def select_frames_by_coverage(frames: list, target_reduction: float = 0.3, grid_size: int = 8) -> list:
+    """
+    Select frames that maximize spatial coverage of the scene.
+    
+    Uses a grid-based approach to ensure diverse viewpoints are captured.
+    
+    Args:
+        frames: List of frame dicts with 'gray' images
+        target_reduction: Target percentage of frames to remove (0.3 = 30% reduction)
+        grid_size: Size of grid for coverage analysis (8x8 = 64 cells)
+        
+    Returns:
+        List of selected frame dicts
+    """
+    import cv2
+    import numpy as np
+    
+    if not frames:
+        return []
+    
+    # Get image dimensions from first frame
+    h, w = frames[0]["gray"].shape
+    cell_h = h // grid_size
+    cell_w = w // grid_size
+    
+    # Calculate coverage score for each frame
+    # Coverage = how many unique grid cells have significant features
+    for frame in frames:
+        gray = frame["gray"]
+        
+        # Detect features using FAST corner detector
+        fast = cv2.FastFeatureDetector_create(threshold=20)
+        keypoints = fast.detect(gray, None)
+        
+        # Track which grid cells have features
+        covered_cells = set()
+        for kp in keypoints:
+            x, y = int(kp.pt[0]), int(kp.pt[1])
+            cell_x = min(x // cell_w, grid_size - 1)
+            cell_y = min(y // cell_h, grid_size - 1)
+            covered_cells.add((cell_x, cell_y))
+        
+        frame["coverage_score"] = len(covered_cells)
+        frame["covered_cells"] = covered_cells
+    
+    # Greedy selection: pick frames that add the most new coverage
+    selected = []
+    total_covered = set()
+    remaining = frames.copy()
+    
+    # Calculate target number of frames
+    target_count = int(len(frames) * (1 - target_reduction))
+    target_count = max(target_count, min(10, len(frames)))  # Keep at least 10 frames
+    
+    while len(selected) < target_count and remaining:
+        # Find frame that adds most new coverage
+        best_frame = None
+        best_new_coverage = 0
+        
+        for frame in remaining:
+            new_cells = frame["covered_cells"] - total_covered
+            new_coverage = len(new_cells)
+            
+            # Tie-breaker: prefer frames with higher blur score
+            if new_coverage > best_new_coverage or \
+               (new_coverage == best_new_coverage and 
+                (best_frame is None or frame["blur_score"] > best_frame["blur_score"])):
+                best_frame = frame
+                best_new_coverage = new_coverage
+        
+        if best_frame is None:
+            break
+        
+        # Add frame to selection
+        selected.append(best_frame)
+        total_covered.update(best_frame["covered_cells"])
+        remaining.remove(best_frame)
+        
+        # If we're not adding new coverage, stop early
+        if best_new_coverage == 0 and len(selected) >= 10:
+            break
+    
+    # If we didn't reach target, add remaining frames sorted by quality
+    if len(selected) < target_count:
+        remaining_sorted = sorted(remaining, key=lambda x: x["blur_score"], reverse=True)
+        selected.extend(remaining_sorted[:target_count - len(selected)])
+    
+    # Sort selected frames by filename to maintain temporal order
+    selected.sort(key=lambda x: x["filename"])
+    
+    logger.info(f"Coverage selection: {len(selected)} frames cover {len(total_covered)}/{grid_size*grid_size} grid cells")
+    
+    return selected
 
 
 def upload_frames(scene_id: str, frames_dir: str, valid_frames: list):

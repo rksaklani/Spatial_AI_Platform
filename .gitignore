@@ -42,3 +42,4 @@ sessions/
 *.sqlite3
 *.db
 .md
+.docs

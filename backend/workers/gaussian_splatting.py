@@ -453,88 +453,185 @@ def load_colmap_points(sparse_dir: str) -> Tuple[np.ndarray, np.ndarray]:
     return points, colors
 
 
-def train_gaussians(
-    model: GaussianModel,
+def train_gaussians_real(
+    sparse_dir: str,
     images_dir: str,
-    cameras_file: str,
+    output_dir: str,
     num_iterations: int = 7000,
-    learning_rate: float = 0.001,
 ) -> Dict[str, Any]:
     """
-    Train Gaussian Splatting model (simplified version).
+    Train Gaussian Splatting model using the official graphdeco-inria implementation.
     
-    In a full implementation, this would:
-    1. Load camera parameters
-    2. Render images from current Gaussians
-    3. Compute photometric loss
-    4. Backpropagate and update Gaussian parameters
-    5. Adaptive density control (split/clone/prune)
-    
-    This simplified version simulates training progress.
+    This function calls the real Gaussian Splatting training script via subprocess.
+    It does NOT simulate or fake any part of the training process.
     
     Args:
-        model: GaussianModel to train
+        sparse_dir: Directory containing COLMAP sparse reconstruction (must have sparse/0/)
         images_dir: Directory containing training images
-        cameras_file: COLMAP cameras file
-        num_iterations: Number of training iterations
-        learning_rate: Learning rate for optimization
+        output_dir: Directory to save trained model
+        num_iterations: Number of training iterations (default: 7000)
         
     Returns:
-        Training metrics
+        Training metrics from the actual training run
+        
+    Raises:
+        RuntimeError: If Gaussian Splatting repository is not installed
+        subprocess.CalledProcessError: If training fails
     """
-    logger.info(f"Starting Gaussian training for {num_iterations} iterations")
+    import subprocess
+    import sys
     
-    # Simulate training progress
-    # In production, this would use PyTorch with differentiable rendering
+    logger.info(f"Starting REAL Gaussian Splatting training for {num_iterations} iterations")
     
-    metrics = {
-        "initial_gaussians": model.num_gaussians,
-        "iterations": num_iterations,
-        "final_psnr": 0.0,
-        "final_ssim": 0.0,
-    }
+    # Check if gaussian-splatting is installed
+    gs_repo_path = os.environ.get("GAUSSIAN_SPLATTING_PATH", "/opt/gaussian-splatting")
+    train_script = os.path.join(gs_repo_path, "train.py")
     
+    if not os.path.exists(train_script):
+        error_msg = (
+            f"Gaussian Splatting repository not found at {gs_repo_path}. "
+            f"Please install from: https://github.com/graphdeco-inria/gaussian-splatting\n"
+            f"Set GAUSSIAN_SPLATTING_PATH environment variable to the installation directory."
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    
+    # Verify COLMAP structure exists
+    colmap_sparse = os.path.join(sparse_dir, "0")
+    required_files = ["cameras.bin", "images.bin", "points3D.bin"]
+    
+    for filename in required_files:
+        filepath = os.path.join(colmap_sparse, filename)
+        if not os.path.exists(filepath):
+            # Try .txt format
+            txt_path = filepath.replace(".bin", ".txt")
+            if not os.path.exists(txt_path):
+                error_msg = f"Required COLMAP file not found: {filename}"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
+    
+    # Prepare training command
+    # The gaussian-splatting repo expects:
+    # python train.py -s <source_path> -m <model_path> --iterations <num>
+    # where source_path contains:
+    #   - images/ (training images)
+    #   - sparse/0/ (COLMAP reconstruction)
+    
+    # Create source directory structure expected by gaussian-splatting
+    source_dir = os.path.join(output_dir, "source")
+    os.makedirs(source_dir, exist_ok=True)
+    
+    # Create symlinks or copy data
+    source_images = os.path.join(source_dir, "images")
+    source_sparse = os.path.join(source_dir, "sparse")
+    
+    if os.path.exists(source_images):
+        shutil.rmtree(source_images)
+    if os.path.exists(source_sparse):
+        shutil.rmtree(source_sparse)
+    
+    shutil.copytree(images_dir, source_images)
+    shutil.copytree(sparse_dir, source_sparse)
+    
+    model_dir = os.path.join(output_dir, "model")
+    os.makedirs(model_dir, exist_ok=True)
+    
+    # Build training command
+    cmd = [
+        sys.executable,  # Use same Python interpreter
+        train_script,
+        "-s", source_dir,
+        "-m", model_dir,
+        "--iterations", str(num_iterations),
+        "--save_iterations", str(num_iterations),  # Save at end
+        "--test_iterations", "-1",  # Disable test set evaluation
+        "--quiet",  # Reduce output
+    ]
+    
+    # Add GPU flag if available
     try:
         import torch
-        has_torch = True
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            logger.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
+            # gaussian-splatting uses CUDA by default if available
+        else:
+            logger.warning("CUDA not available, training will be slow on CPU")
     except ImportError:
-        has_torch = False
-        device = "cpu"
+        logger.warning("PyTorch not available, cannot check CUDA")
     
-    # Simulate training iterations
-    for i in range(0, num_iterations, 100):
-        # Adaptive density control at certain iterations
-        if i == 500:
-            # Densification: add more Gaussians
-            num_to_add = model.num_gaussians // 10
-            new_positions = model.positions[:num_to_add] + np.random.randn(num_to_add, 3) * 0.01
-            model.positions = np.vstack([model.positions, new_positions])
-            model.scales = np.vstack([model.scales, model.scales[:num_to_add] * 0.8])
-            model.rotations = np.vstack([model.rotations, model.rotations[:num_to_add]])
-            model.opacities = np.vstack([model.opacities, model.opacities[:num_to_add] * 0.5])
-            model.sh_coeffs = np.vstack([model.sh_coeffs, model.sh_coeffs[:num_to_add]])
-            model.num_gaussians = len(model.positions)
-        
-        if i == 3000:
-            # Pruning: remove low-opacity Gaussians
-            model.prune(min_opacity=0.01)
-        
-        # Simulate loss decay
-        progress = i / num_iterations
-        simulated_psnr = 20 + 15 * progress  # 20 -> 35 PSNR
-        simulated_ssim = 0.7 + 0.25 * progress  # 0.7 -> 0.95 SSIM
-        
-        if i % 1000 == 0:
-            logger.info(f"Training iteration {i}/{num_iterations}, PSNR: {simulated_psnr:.2f}")
+    logger.info(f"Running command: {' '.join(cmd)}")
     
-    # Final metrics
-    metrics["final_gaussians"] = model.num_gaussians
-    metrics["final_psnr"] = simulated_psnr
-    metrics["final_ssim"] = simulated_ssim
-    metrics["device"] = device
+    # Run training with real-time output capture
+    start_time = time.time()
     
-    logger.info(f"Training complete: {model.num_gaussians} Gaussians, PSNR: {simulated_psnr:.2f}")
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        )
+        
+        # Stream output
+        for line in process.stdout:
+            line = line.strip()
+            if line:
+                logger.info(f"[GS] {line}")
+        
+        # Wait for completion
+        return_code = process.wait()
+        
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, cmd)
+        
+        training_time = time.time() - start_time
+        logger.info(f"Gaussian Splatting training completed in {training_time:.1f}s")
+        
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Gaussian Splatting training failed with exit code {e.returncode}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from e
+    
+    # Find output PLY file
+    # gaussian-splatting saves to: <model_dir>/point_cloud/iteration_<num>/point_cloud.ply
+    ply_path = os.path.join(model_dir, "point_cloud", f"iteration_{num_iterations}", "point_cloud.ply")
+    
+    if not os.path.exists(ply_path):
+        # Try alternative locations
+        alt_paths = [
+            os.path.join(model_dir, "point_cloud.ply"),
+            os.path.join(model_dir, f"iteration_{num_iterations}.ply"),
+        ]
+        
+        for alt_path in alt_paths:
+            if os.path.exists(alt_path):
+                ply_path = alt_path
+                break
+        else:
+            error_msg = f"Trained model PLY not found at {ply_path}"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+    
+    logger.info(f"Found trained model at: {ply_path}")
+    
+    # Parse metrics from training output if available
+    metrics = {
+        "iterations": num_iterations,
+        "training_time_seconds": training_time,
+        "output_ply_path": ply_path,
+    }
+    
+    # Try to read metrics from gaussian-splatting output
+    metrics_file = os.path.join(model_dir, "metrics.json")
+    if os.path.exists(metrics_file):
+        try:
+            with open(metrics_file, 'r') as f:
+                gs_metrics = json.load(f)
+                metrics.update(gs_metrics)
+        except Exception as e:
+            logger.warning(f"Could not read metrics file: {e}")
     
     return metrics
 
@@ -550,20 +647,23 @@ def train_gaussians(
 )
 def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
     """
-    Reconstruct 3D scene using Gaussian Splatting.
+    Reconstruct 3D scene using REAL Gaussian Splatting.
+    
+    This task integrates with the official graphdeco-inria/gaussian-splatting repository.
+    It does NOT use fake training or simulated metrics.
     
     Args:
         scene_id: Scene UUID
         job_id: Processing job UUID
         
     Returns:
-        Reconstruction metrics
+        Reconstruction metrics from actual training
     """
     start_time = time.time()
     work_dir = None
     
     try:
-        logger.info(f"Starting Gaussian Splatting reconstruction for scene {scene_id}")
+        logger.info(f"Starting REAL Gaussian Splatting reconstruction for scene {scene_id}")
         
         update_job_progress(job_id, 0, "initializing", "Starting reconstruction")
         update_scene_status(scene_id, "reconstructing", "Starting Gaussian Splatting")
@@ -572,7 +672,7 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         work_dir = tempfile.mkdtemp(prefix=f"gs_{scene_id}_")
         
         # Download sparse reconstruction from MinIO
-        update_job_progress(job_id, 5, "downloading", "Downloading sparse data")
+        update_job_progress(job_id, 5, "downloading", "Downloading sparse data and frames")
         
         from utils.minio_client import get_minio_client
         minio = get_minio_client()
@@ -581,81 +681,98 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         os.makedirs(sparse_dir, exist_ok=True)
         os.makedirs(os.path.join(sparse_dir, "0"), exist_ok=True)
         
-        # Download sparse files
+        # Download sparse files (COLMAP output)
         try:
             objects = minio.client.list_objects("scenes", prefix=f"{scene_id}/sparse/", recursive=True)
             for obj in objects:
                 local_path = os.path.join(work_dir, obj.object_name.replace(f"{scene_id}/", ""))
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 minio.download_file("scenes", obj.object_name, local_path)
+            
+            logger.info(f"Downloaded COLMAP sparse reconstruction")
         except Exception as e:
-            logger.warning(f"Failed to download sparse data: {e}")
+            logger.error(f"Failed to download sparse data: {e}")
+            raise RuntimeError(f"Cannot proceed without COLMAP data: {e}")
         
         # Download frames
-        frames_dir = os.path.join(work_dir, "frames")
-        os.makedirs(frames_dir, exist_ok=True)
+        images_dir = os.path.join(work_dir, "images")
+        os.makedirs(images_dir, exist_ok=True)
         
         try:
             objects = minio.client.list_objects("frames", prefix=f"{scene_id}/", recursive=True)
+            frame_count = 0
             for obj in objects:
                 filename = os.path.basename(obj.object_name)
-                local_path = os.path.join(frames_dir, filename)
+                local_path = os.path.join(images_dir, filename)
                 minio.download_file("frames", obj.object_name, local_path)
+                frame_count += 1
+            
+            logger.info(f"Downloaded {frame_count} training frames")
+            
+            if frame_count == 0:
+                raise RuntimeError("No training frames found")
+                
         except Exception as e:
-            logger.warning(f"Failed to download frames: {e}")
+            logger.error(f"Failed to download frames: {e}")
+            raise RuntimeError(f"Cannot proceed without training frames: {e}")
         
-        # Load COLMAP points
-        update_job_progress(job_id, 15, "loading_points", "Loading sparse point cloud")
+        # Run REAL Gaussian Splatting training
+        update_job_progress(job_id, 15, "training", f"Training Gaussian Splatting ({num_iterations} iterations)")
+        update_scene_status(scene_id, "reconstructing", "Running neural reconstruction")
         
-        points, colors = load_colmap_points(sparse_dir)
+        gs_output_dir = os.path.join(work_dir, "gaussian_output")
         
-        # Initialize Gaussian model
-        update_job_progress(job_id, 20, "initializing_gaussians", "Initializing Gaussians")
+        try:
+            train_metrics = train_gaussians_real(
+                sparse_dir=sparse_dir,
+                images_dir=images_dir,
+                output_dir=gs_output_dir,
+                num_iterations=num_iterations,
+            )
+            
+            trained_ply_path = train_metrics["output_ply_path"]
+            
+        except Exception as e:
+            logger.error(f"Real Gaussian Splatting training failed: {e}")
+            raise RuntimeError(f"Gaussian Splatting training failed: {e}")
         
-        model = GaussianModel()
-        model.initialize_from_points(points, colors)
+        # Load trained model
+        update_job_progress(job_id, 75, "loading", "Loading trained model")
         
+        model = GaussianModel.load_ply(trained_ply_path)
         initial_count = model.num_gaussians
         
-        # Train model
-        update_job_progress(job_id, 25, "training", "Training Gaussian Splatting")
-        update_scene_status(scene_id, "reconstructing", f"Training with {initial_count} Gaussians")
+        logger.info(f"Loaded trained model with {initial_count} Gaussians")
         
-        cameras_file = os.path.join(sparse_dir, "0", "cameras.txt")
-        
-        train_metrics = train_gaussians(
-            model,
-            frames_dir,
-            cameras_file,
-            num_iterations=7000,
-        )
-        
-        # Optimize: prune and merge
-        update_job_progress(job_id, 75, "optimizing", "Optimizing Gaussians")
+        # Post-processing: Optimize (prune and merge)
+        update_job_progress(job_id, 80, "optimizing", "Optimizing Gaussians")
         
         model.prune(min_opacity=0.05)
         model.merge_nearby(distance_threshold=0.01)
         
         optimized_count = model.num_gaussians
+        size_reduction = (1 - optimized_count / initial_count) * 100 if initial_count > 0 else 0
+        
+        logger.info(f"Optimized: {initial_count} -> {optimized_count} Gaussians ({size_reduction:.1f}% reduction)")
         
         # Generate LOD versions
         update_job_progress(job_id, 85, "generating_lod", "Generating LOD versions")
         
-        output_dir = os.path.join(work_dir, "gaussian")
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir_final = os.path.join(work_dir, "gaussian")
+        os.makedirs(output_dir_final, exist_ok=True)
         
         # Save high LOD (100%)
-        high_path = os.path.join(output_dir, "scene_high.ply")
+        high_path = os.path.join(output_dir_final, "scene_high.ply")
         model.save_ply(high_path)
         
         # Save medium LOD (50%)
         medium_model = model.generate_lod(0.5)
-        medium_path = os.path.join(output_dir, "scene_medium.ply")
+        medium_path = os.path.join(output_dir_final, "scene_medium.ply")
         medium_model.save_ply(medium_path)
         
         # Save low LOD (20%)
         low_model = model.generate_lod(0.2)
-        low_path = os.path.join(output_dir, "scene_low.ply")
+        low_path = os.path.join(output_dir_final, "scene_low.ply")
         low_model.save_ply(low_path)
         
         # Upload to MinIO
@@ -665,11 +782,11 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
             minio.create_bucket("scenes")
         
         for filename in ["scene_high.ply", "scene_medium.ply", "scene_low.ply"]:
-            local_path = os.path.join(output_dir, filename)
+            local_path = os.path.join(output_dir_final, filename)
             object_name = f"{scene_id}/gaussian/{filename}"
             minio.upload_file("scenes", object_name, local_path)
         
-        # Calculate metrics
+        # Calculate final metrics
         processing_time = time.time() - start_time
         
         high_size = os.path.getsize(high_path)
@@ -680,42 +797,50 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
             "scene_id": scene_id,
             "initial_gaussians": initial_count,
             "optimized_gaussians": optimized_count,
+            "size_reduction_percent": size_reduction,
             "high_lod_gaussians": model.num_gaussians,
             "medium_lod_gaussians": medium_model.num_gaussians,
             "low_lod_gaussians": low_model.num_gaussians,
             "high_lod_size_mb": high_size / (1024 * 1024),
             "medium_lod_size_mb": medium_size / (1024 * 1024),
             "low_lod_size_mb": low_size / (1024 * 1024),
-            "psnr": train_metrics.get("final_psnr", 0),
-            "ssim": train_metrics.get("final_ssim", 0),
+            "training_time_seconds": train_metrics.get("training_time_seconds", 0),
             "processing_time_seconds": processing_time,
+            "real_training": True,  # Flag indicating this used real GS
         }
         
+        # Add any metrics from real training
+        if "psnr" in train_metrics:
+            result["psnr"] = train_metrics["psnr"]
+        if "ssim" in train_metrics:
+            result["ssim"] = train_metrics["ssim"]
+        
         # Update scene status
-        update_job_progress(job_id, 100, "completed", "Reconstruction complete", result)
+        update_job_progress(job_id, 100, "completed", "Reconstruction complete")
         update_scene_status(
             scene_id,
             "reconstructed",
             f"Reconstructed with {optimized_count} Gaussians",
             metrics={
                 "gaussian_count": optimized_count,
-                "psnr": train_metrics.get("final_psnr", 0),
+                "size_reduction_percent": size_reduction,
             }
         )
         
-        logger.info(f"Gaussian Splatting complete for {scene_id}: {optimized_count} Gaussians")
+        logger.info(f"REAL Gaussian Splatting complete for {scene_id}: {optimized_count} Gaussians")
         
         return result
         
     except Exception as e:
         logger.error(f"Gaussian Splatting failed for {scene_id}: {e}")
-        update_job_progress(job_id, 0, "failed", error=str(e))
-        update_scene_status(scene_id, "failed", error=str(e))
+        update_job_progress(job_id, 0, "failed", f"Reconstruction failed: {str(e)}")
+        update_scene_status(scene_id, "failed", f"Reconstruction failed: {str(e)}")
         raise
         
     finally:
         if work_dir and os.path.exists(work_dir):
             try:
                 shutil.rmtree(work_dir)
-            except Exception:
-                pass
+                logger.info(f"Cleaned up working directory")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup {work_dir}: {e}")

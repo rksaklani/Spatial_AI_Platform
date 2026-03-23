@@ -169,6 +169,8 @@ services:
       - ENVIRONMENT=development
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - GAUSSIAN_SPLATTING_PATH=/opt/gaussian-splatting
+      - CUDA_VISIBLE_DEVICES=0
     volumes:
       - ./backend:/app
     networks:

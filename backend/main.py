@@ -16,6 +16,13 @@ from api.auth import router as auth_router
 from api.organizations import router as org_router
 from api.scenes import router as scenes_router
 from api.import_3d import router as import_router
+from api.tiles import router as tiles_router
+from api.server_render import router as server_render_router
+from api.sharing import router as sharing_router
+from api.annotations import router as annotations_router
+from api.collaboration import router as collaboration_router
+from api.guided_tours import router as guided_tours_router
+from api.scene_comparison import router as comparison_router
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -107,6 +114,13 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(org_router, prefix="/api/v1", tags=["Organizations"])
 app.include_router(scenes_router, prefix="/api/v1", tags=["Scenes"])
 app.include_router(import_router, prefix="/api/v1/scenes", tags=["3D Import"])
+app.include_router(tiles_router, prefix="/api/v1", tags=["Tiles"])
+app.include_router(server_render_router, prefix="/api/v1", tags=["Server Rendering"])
+app.include_router(sharing_router, prefix="/api/v1", tags=["Sharing"])
+app.include_router(annotations_router, prefix="/api/v1", tags=["Annotations"])
+app.include_router(collaboration_router, prefix="/api/v1", tags=["Collaboration"])
+app.include_router(guided_tours_router, tags=["Guided Tours"])
+app.include_router(comparison_router, tags=["Scene Comparison"])
 
 
 @app.get("/")
