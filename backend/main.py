@@ -23,6 +23,9 @@ from api.annotations import router as annotations_router
 from api.collaboration import router as collaboration_router
 from api.guided_tours import router as guided_tours_router
 from api.scene_comparison import router as comparison_router
+from api.photos import router as photos_router
+from api.geospatial import router as geospatial_router
+from api.orthophotos import router as orthophotos_router
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -121,6 +124,9 @@ app.include_router(annotations_router, prefix="/api/v1", tags=["Annotations"])
 app.include_router(collaboration_router, prefix="/api/v1", tags=["Collaboration"])
 app.include_router(guided_tours_router, tags=["Guided Tours"])
 app.include_router(comparison_router, tags=["Scene Comparison"])
+app.include_router(photos_router, prefix="/api/v1", tags=["Photos"])
+app.include_router(geospatial_router, tags=["Geospatial"])
+app.include_router(orthophotos_router, tags=["Orthophotos"])
 
 
 @app.get("/")

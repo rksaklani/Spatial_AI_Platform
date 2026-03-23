@@ -316,8 +316,8 @@ async def list_scenes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status_filter: Optional[str] = Query(None, alias="status"),
-    sort_by: str = Query("created_at", regex="^(created_at|updated_at|name)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|name)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
 ):
     """
     List scenes for the current user's organization.
@@ -594,3 +594,119 @@ async def reprocess_scene(
     logger.info("scene_reprocess_triggered", scene_id=scene_id, job_id=job_id)
     
     return {"job_id": job_id, "message": "Reprocessing triggered"}
+
+
+# ============================================================================
+# Camera Configuration Endpoints
+# ============================================================================
+
+from models.scene import CameraConfiguration, CameraBoundary
+
+
+@router.get("/{scene_id}/camera-config", response_model=CameraConfiguration)
+async def get_camera_config(
+    scene_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Get camera configuration for a scene.
+    
+    Returns default configuration if none is set.
+    """
+    db = await get_db()
+    
+    scene = await db.scenes.find_one({"_id": scene_id})
+    
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scene not found"
+        )
+    
+    # Check organization access
+    if scene["organization_id"] != current_user.organization_id:
+        if not scene.get("is_public", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this scene"
+            )
+    
+    # Return camera config or default
+    camera_config = scene.get("camera_config")
+    if camera_config:
+        return CameraConfiguration(**camera_config)
+    else:
+        return CameraConfiguration()
+
+
+@router.put("/{scene_id}/camera-config", response_model=CameraConfiguration)
+async def update_camera_config(
+    scene_id: str,
+    camera_config: CameraConfiguration,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Update camera configuration for a scene.
+    
+    Allows setting:
+    - Camera boundary (3D bounding box)
+    - Zoom limits (min/max distance)
+    - Axis locks (X, Y, Z)
+    - Default camera position and target
+    - Rotation enable/disable
+    - Boundary indicators
+    
+    Requirements: 30.1, 30.2, 30.3, 30.4, 30.5, 30.6, 30.7, 30.8, 30.9, 30.10
+    """
+    db = await get_db()
+    
+    scene = await db.scenes.find_one({"_id": scene_id})
+    
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scene not found"
+        )
+    
+    # Check organization access
+    if scene["organization_id"] != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this scene"
+        )
+    
+    # Validate camera configuration
+    if camera_config.min_zoom_distance >= camera_config.max_zoom_distance:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="min_zoom_distance must be less than max_zoom_distance"
+        )
+    
+    if camera_config.boundary and camera_config.boundary_enabled:
+        b = camera_config.boundary
+        if b.min_x >= b.max_x or b.min_y >= b.max_y or b.min_z >= b.max_z:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid boundary: min values must be less than max values"
+            )
+    
+    # Update scene with camera config
+    await db.scenes.update_one(
+        {"_id": scene_id},
+        {
+            "$set": {
+                "camera_config": camera_config.model_dump(),
+                "updated_at": datetime.utcnow(),
+            }
+        }
+    )
+    
+    logger.info(
+        "camera_config_updated",
+        scene_id=scene_id,
+        updated_by=current_user.id,
+        boundary_enabled=camera_config.boundary_enabled,
+        rotation_enabled=camera_config.rotation_enabled
+    )
+    
+    return camera_config

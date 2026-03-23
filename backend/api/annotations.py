@@ -33,22 +33,52 @@ from models.user import UserInDB
 from api.deps import get_current_user
 from utils.database import get_db
 from utils.minio_client import get_minio_client
+from services.coordinate_transformer import coordinate_transformer
+from models.geospatial import GeospatialCoordinates
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/scenes/{scene_id}/annotations", tags=["annotations"])
 
 
-def calculate_distance(p1: Position3D, p2: Position3D) -> float:
+def calculate_distance(p1: Position3D, p2: Position3D, scene_georeferencing=None) -> float:
     """
-    Calculate Euclidean distance between two 3D points.
+    Calculate distance between two 3D points.
+    Uses geodetic calculations if scene is georeferenced, otherwise Euclidean.
     
     Args:
         p1: First point
         p2: Second point
+        scene_georeferencing: Optional scene georeferencing data
         
     Returns:
         Distance in meters
     """
+    # If scene is georeferenced and has coordinate data, use geodetic calculation
+    if scene_georeferencing and scene_georeferencing.get('is_georeferenced'):
+        try:
+            # Transform scene coordinates to geospatial coordinates
+            # This is simplified - in production would use transformation matrix
+            origin = scene_georeferencing.get('origin_coordinates')
+            if origin:
+                # Create geospatial coordinates for both points
+                # Note: This is a simplified transformation
+                coord1 = GeospatialCoordinates(
+                    latitude=origin['latitude'] + p1.y / 111320.0,  # Approximate degrees
+                    longitude=origin['longitude'] + p1.x / (111320.0 * math.cos(math.radians(origin['latitude']))),
+                    altitude=origin.get('altitude', 0) + p1.z if origin.get('altitude') else p1.z
+                )
+                coord2 = GeospatialCoordinates(
+                    latitude=origin['latitude'] + p2.y / 111320.0,
+                    longitude=origin['longitude'] + p2.x / (111320.0 * math.cos(math.radians(origin['latitude']))),
+                    altitude=origin.get('altitude', 0) + p2.z if origin.get('altitude') else p2.z
+                )
+                
+                # Use geodetic distance calculation
+                return coordinate_transformer.calculate_geodetic_distance(coord1, coord2)
+        except Exception as e:
+            logger.warning("Failed to calculate geodetic distance, falling back to Euclidean", error=str(e))
+    
+    # Fall back to Euclidean distance
     dx = p2.x - p1.x
     dy = p2.y - p1.y
     dz = p2.z - p1.z
@@ -149,6 +179,9 @@ async def create_annotation(
     annotation_id = str(uuid.uuid4())
     now = datetime.utcnow()
     
+    # Get scene georeferencing for geodetic calculations
+    scene_georeferencing = scene.get('georeferencing')
+    
     # Process measurement data if provided
     measurement_data = annotation.measurement_data
     if annotation.annotation_type == AnnotationType.MEASUREMENT and measurement_data:
@@ -157,7 +190,8 @@ async def create_annotation(
             if measurement_data.value == 0.0:
                 measurement_data.value = calculate_distance(
                     measurement_data.points[0],
-                    measurement_data.points[1]
+                    measurement_data.points[1],
+                    scene_georeferencing
                 )
                 measurement_data.unit = "m"
         

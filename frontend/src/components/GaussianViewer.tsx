@@ -16,6 +16,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CameraLimitsController } from './CameraLimits';
+import type { CameraConfiguration } from '../types/camera.types';
 
 interface GaussianViewerProps {
   sceneId: string;
@@ -90,6 +92,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   const tileRequestThrottleMs = 500;
   const animationMixerRef = useRef<THREE.AnimationMixer | null>(null);
   const animationActionsRef = useRef<THREE.AnimationAction[]>([]);
+  const cameraLimitsRef = useRef<CameraLimitsController | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [fps, setFps] = useState(0);
@@ -104,6 +107,8 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     loop: true,
   });
   const [selectedBIMElement, setSelectedBIMElement] = useState<string | null>(null);
+  const [cameraConfig, setCameraConfig] = useState<CameraConfiguration | null>(null);
+  const [approachingBoundary, setApproachingBoundary] = useState(false);
 
   // Detect WebGPU support and browser info
   const detectRendererType = useCallback(async (): Promise<'webgpu' | 'webgl2' | 'webgl'> => {
@@ -213,6 +218,9 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     });
     controlsRef.current = controls;
 
+    // Load camera configuration
+    loadCameraConfiguration();
+
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
@@ -266,6 +274,14 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         // Update controls
         controls.update();
         
+        // Check if approaching boundary
+        if (cameraLimitsRef.current) {
+          const approaching = cameraLimitsRef.current.isApproachingBoundary(2.0);
+          if (approaching !== approachingBoundary) {
+            setApproachingBoundary(approaching);
+          }
+        }
+        
         // Update animations if enabled
         if (enableAnimations && animationMixerRef.current) {
           const delta = deltaTime / 1000; // Convert to seconds
@@ -306,6 +322,9 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
       controls.dispose();
+      if (cameraLimitsRef.current) {
+        cameraLimitsRef.current.dispose();
+      }
       if (rendererRef.current) {
         rendererRef.current.dispose();
         if (container && rendererRef.current.domElement.parentNode === container) {
@@ -324,6 +343,34 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       });
     };
   }, [sceneId, detectRendererType]);
+
+  // Load camera configuration from API
+  const loadCameraConfiguration = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/v1/scenes/${sceneId}/camera-config`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const config: CameraConfiguration = await response.json();
+        setCameraConfig(config);
+
+        // Initialize camera limits controller
+        if (cameraRef.current && controlsRef.current && sceneRef.current) {
+          cameraLimitsRef.current = new CameraLimitsController(
+            cameraRef.current,
+            controlsRef.current,
+            config,
+            sceneRef.current
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load camera configuration:', error);
+    }
+  }, [sceneId]);
 
   // Request tile update based on camera position
   const requestTileUpdate = useCallback(async () => {
@@ -970,6 +1017,28 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         <div>Tiles: {loadedTilesRef.current.size}</div>
         <div>Status: {isLoading ? 'Loading...' : 'Ready'}</div>
       </div>
+
+      {/* Boundary warning */}
+      {approachingBoundary && cameraConfig?.boundary_enabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(255, 165, 0, 0.9)',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            fontFamily: 'sans-serif',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          }}
+        >
+          ⚠️ Approaching camera boundary
+        </div>
+      )}
 
       {/* Animation controls */}
       {enableAnimations && animationState.duration > 0 && (

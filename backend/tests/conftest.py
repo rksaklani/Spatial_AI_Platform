@@ -299,3 +299,69 @@ def mock_valkey_for_collaboration():
         # Also patch any direct imports
         with patch('services.collaboration.get_valkey_client', return_value=mock_client):
             yield mock_client
+
+
+# ============================================================================
+# Photo Inspector Test Fixtures
+# ============================================================================
+
+@pytest.fixture
+async def test_scene(db, test_organization, test_user):
+    """Create a test scene for photo tests."""
+    scene_id = str(ObjectId())
+    scene_doc = {
+        "_id": scene_id,
+        "organization_id": test_organization["_id"],
+        "owner_id": test_user["_id"],
+        "name": "Test Scene",
+        "description": "Test scene for photo inspector",
+        "source_type": "video",
+        "original_filename": "test_video.mp4",
+        "file_size_bytes": 1024000,
+        "mime_type": "video/mp4",
+        "source_path": f"videos/{test_organization['_id']}/{scene_id}/original.mp4",
+        "status": "ready",
+        "is_public": False,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+    
+    await db.scenes.insert_one(scene_doc)
+    yield scene_doc
+    
+    # Cleanup
+    await db.scenes.delete_one({"_id": scene_id})
+
+
+@pytest.fixture
+async def other_org_user(db):
+    """Create a user from a different organization."""
+    org_id = str(ObjectId())
+    user_id = str(ObjectId())
+    
+    # Create organization
+    org_doc = {
+        "_id": org_id,
+        "name": "Other Organization",
+        "created_at": datetime.utcnow(),
+    }
+    await db.organizations.insert_one(org_doc)
+    
+    # Create user
+    user_doc = {
+        "_id": user_id,
+        "organization_id": org_id,
+        "email": "other@example.com",
+        "name": "Other User",
+        "created_at": datetime.utcnow(),
+    }
+    await db.users.insert_one(user_doc)
+    
+    # Generate token (simplified)
+    token = "other-user-token"
+    
+    yield {"_id": user_id, "organization_id": org_id, "token": token}
+    
+    # Cleanup
+    await db.users.delete_one({"_id": user_id})
+    await db.organizations.delete_one({"_id": org_id})

@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field
+from models.geospatial import SceneGeoreferencing
 
 
 class SceneStatus(str, Enum):
@@ -50,6 +51,42 @@ class ProcessingMetrics(BaseModel):
     point_count: int = 0
     tile_count: int = 0
     processing_time_seconds: float = 0.0
+
+
+class CameraBoundary(BaseModel):
+    """3D bounding box for camera movement limits."""
+    min_x: float
+    min_y: float
+    min_z: float
+    max_x: float
+    max_y: float
+    max_z: float
+
+
+class CameraConfiguration(BaseModel):
+    """Camera limits and configuration for scene viewing."""
+    # Boundary limits
+    boundary: Optional[CameraBoundary] = None
+    boundary_enabled: bool = False
+    
+    # Zoom limits
+    min_zoom_distance: float = 0.1
+    max_zoom_distance: float = 1000.0
+    
+    # Axis locks
+    lock_x_axis: bool = False
+    lock_y_axis: bool = False
+    lock_z_axis: bool = False
+    
+    # Default camera position
+    default_position: Optional[List[float]] = None  # [x, y, z]
+    default_target: Optional[List[float]] = None  # [x, y, z]
+    
+    # Rotation control
+    rotation_enabled: bool = True
+    
+    # Boundary indicators
+    show_boundary_indicators: bool = True
 
 
 class SceneBase(BaseModel):
@@ -97,6 +134,8 @@ class SceneInDB(SceneBase):
     # Metadata
     video_metadata: Optional[VideoMetadata] = None
     processing_metrics: ProcessingMetrics = Field(default_factory=ProcessingMetrics)
+    georeferencing: Optional[SceneGeoreferencing] = None
+    camera_config: Optional[CameraConfiguration] = None
     
     # Visibility
     is_public: bool = False
@@ -126,6 +165,8 @@ class SceneResponse(SceneBase):
     error_message: Optional[str] = None
     video_metadata: Optional[VideoMetadata] = None
     processing_metrics: ProcessingMetrics
+    georeferencing: Optional[SceneGeoreferencing] = None
+    camera_config: Optional[CameraConfiguration] = None
     is_public: bool
     thumbnail_url: Optional[str] = None
     created_at: datetime

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geometric Background Pattern Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* Geometric Background Pattern - Nira-inspired Design */
+    .geometric-bg {
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .geometric-bg::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(30deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
+        linear-gradient(150deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
+        linear-gradient(30deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
+        linear-gradient(150deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05));
+      background-size: 80px 140px;
+      background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ensure content is above the pattern */
+    .geometric-bg > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .test-container {
+      min-height: 100vh;
+      padding: 60px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .test-card {
+      background: rgba(26, 26, 26, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 600px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    h1 {
+      color: #ffffff;
+      font-size: 48px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      letter-spacing: -1px;
+    }
+
+    .accent {
+      color: #ff6b4a;
+    }
+
+    p {
+      color: #a0a0a0;
+      font-size: 18px;
+      line-height: 1.6;
+      margin: 0 0 24px 0;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 14px 32px;
+      background: #ff6b4a;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(255, 107, 74, 0.3);
+    }
+
+    .button:hover {
+      background: #ff8c6b;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(255, 107, 74, 0.4);
+    }
+
+    .performance-info {
+      margin-top: 40px;
+      padding: 20px;
+      background: rgba(10, 10, 10, 0.6);
+      border: 1px solid rgba(255, 107, 74, 0.2);
+      border-radius: 8px;
+      color: #a0a0a0;
+      font-size: 14px;
+    }
+
+    .performance-info strong {
+      color: #ff6b4a;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 6px 12px;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="geometric-bg test-container">
+    <div class="test-card">
+      <h1>Geometric <span class="accent">Background</span></h1>
+      <p>
+        This is a test of the geometric background pattern inspired by Nira.app. 
+        The pattern uses CSS gradients to create a subtle geometric texture that 
+        adds visual interest without overwhelming the content.
+      </p>
+      <a href="#" class="button">Test Button</a>
+      
+      <div class="performance-info">
+        <strong>Pattern Details:</strong><br>
+        • Dark gradient background (#0a0a0a to #1a1a1a)<br>
+        • Coral accent color (#ff6b4a) at 5% opacity<br>
+        • 80px × 140px repeating pattern<br>
+        • Pure CSS - no images required<br>
+        • Performance: <span class="status">Excellent</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Performance monitoring
+    window.addEventListener('load', () => {
+      const perfData = performance.getEntriesByType('navigation')[0];
+      console.log('Page Load Performance:');
+      console.log('- DOM Content Loaded:', perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart, 'ms');
+      console.log('- Load Complete:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+      console.log('✓ Geometric background pattern loaded successfully');
+    });
+
+    // FPS monitoring
+    let lastTime = performance.now();
+    let frames = 0;
+    let fps = 0;
+
+    function measureFPS() {
+      const currentTime = performance.now();
+      frames++;
+      
+      if (currentTime >= lastTime + 1000) {
+        fps = Math.round((frames * 1000) / (currentTime - lastTime));
+        console.log('FPS:', fps);
+        frames = 0;
+        lastTime = currentTime;
+      }
+      
+      requestAnimationFrame(measureFPS);
+    }
+
+    measureFPS();
+  </script>
+</body>
+</html>

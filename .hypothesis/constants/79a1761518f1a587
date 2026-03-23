@@ -1,0 +1,4 @@
+# file: E:\Rk_Saklani\3d_rendering\backend\models\organization.py
+# hypothesis_version: 6.151.9
+
+[100, '_id', 'enterprise', 'free_trial', 'member', 'professional', 'starter']

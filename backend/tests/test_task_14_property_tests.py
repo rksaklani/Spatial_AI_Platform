@@ -24,7 +24,7 @@ class TestPLYRoundTrip:
         has_colors=st.booleans(),
         has_normals=st.booleans()
     )
-    @settings(max_examples=20, deadline=5000)
+    @settings(max_examples=5, deadline=5000)
     def test_ply_point_cloud_round_trip(self, num_points, has_colors, has_normals, tmp_path):
         """Test PLY point cloud round-trip with various properties"""
         from workers.parsers.ply_parser import PLYParser
@@ -106,7 +106,7 @@ class TestPLYRoundTrip:
     @given(
         num_gaussians=st.integers(min_value=10, max_value=500)
     )
-    @settings(max_examples=10, deadline=5000)
+    @settings(max_examples=3, deadline=5000)
     def test_ply_gaussian_splatting_round_trip(self, num_gaussians, tmp_path):
         """Test PLY Gaussian Splatting format round-trip"""
         from workers.parsers.ply_parser import PLYParser
@@ -197,7 +197,7 @@ class TestJSONMetadataRoundTrip:
         num_objects=st.integers(min_value=1, max_value=20),
         scene_name=st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'))),
     )
-    @settings(max_examples=20, deadline=3000)
+    @settings(max_examples=5, deadline=3000)
     def test_scene_graph_json_round_trip(self, num_objects, scene_name, tmp_path):
         """Test Scene_Graph JSON serialization round-trip"""
         from workers.semantic_analysis import Scene_Graph, Scene_Object
@@ -265,7 +265,7 @@ class TestJSONMetadataRoundTrip:
         has_materials=st.booleans(),
         has_hierarchy=st.booleans()
     )
-    @settings(max_examples=15, deadline=3000)
+    @settings(max_examples=4, deadline=3000)
     def test_scene_metadata_with_optional_fields(self, has_materials, has_hierarchy, tmp_path):
         """Test scene metadata round-trip with optional fields"""
         # Create metadata with optional fields

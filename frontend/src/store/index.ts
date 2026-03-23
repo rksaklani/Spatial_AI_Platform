@@ -49,7 +49,7 @@ export const store = configureStore({
         // Ignore redux-persist actions
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         // Ignore these field paths in all actions
-        ignoredActionPaths: ['payload.timestamp'],
+        ignoredActionPaths: ['payload.timestamp', 'meta.baseQueryMeta'],
         // Ignore these paths in the state
         ignoredPaths: ['scene.currentScene.metadata', 'scene.loadedTiles'],
       },

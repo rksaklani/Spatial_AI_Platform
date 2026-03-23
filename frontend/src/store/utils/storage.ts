@@ -3,16 +3,22 @@
  * 
  * Provides fallback when localStorage is not available
  * (e.g., SSR, private browsing, or disabled storage)
+ * 
+ * IMPORTANT: Redux-persist v6+ requires storage methods to return Promises.
+ * We wrap synchronous localStorage operations in Promise.resolve() to ensure
+ * immediate resolution while maintaining the async interface redux-persist expects.
  */
 
-interface Storage {
+// Redux-persist compatible storage interface
+// All methods MUST return promises for redux-persist v6+
+interface StorageEngine {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
 }
 
 // In-memory fallback storage
-class MemoryStorage implements Storage {
+class MemoryStorage implements StorageEngine {
   private storage: Map<string, string> = new Map();
 
   async getItem(key: string): Promise<string | null> {
@@ -25,6 +31,40 @@ class MemoryStorage implements Storage {
 
   async removeItem(key: string): Promise<void> {
     this.storage.delete(key);
+  }
+}
+
+// Synchronous localStorage wrapper that returns promises
+// This ensures immediate writes while satisfying redux-persist's async interface
+class LocalStorageWrapper implements StorageEngine {
+  getItem(key: string): Promise<string | null> {
+    try {
+      const value = localStorage.getItem(key);
+      return Promise.resolve(value);
+    } catch (e) {
+      console.warn('localStorage.getItem failed:', e);
+      return Promise.resolve(null);
+    }
+  }
+
+  setItem(key: string, value: string): Promise<void> {
+    try {
+      localStorage.setItem(key, value);
+      return Promise.resolve();
+    } catch (e) {
+      console.warn('localStorage.setItem failed:', e);
+      return Promise.resolve();
+    }
+  }
+
+  removeItem(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+      return Promise.resolve();
+    } catch (e) {
+      console.warn('localStorage.removeItem failed:', e);
+      return Promise.resolve();
+    }
   }
 }
 
@@ -41,35 +81,10 @@ function isLocalStorageAvailable(): boolean {
 }
 
 // Create safe storage
-function createSafeStorage(): Storage {
+function createSafeStorage(): StorageEngine {
   if (isLocalStorageAvailable()) {
-    // Use localStorage if available
-    return {
-      async getItem(key: string): Promise<string | null> {
-        try {
-          return localStorage.getItem(key);
-        } catch (e) {
-          console.warn('localStorage.getItem failed:', e);
-          return null;
-        }
-      },
-      async setItem(key: string, value: string): Promise<void> {
-        try {
-          localStorage.setItem(key, value);
-        } catch (e) {
-          console.warn('localStorage.setItem failed:', e);
-        }
-      },
-      async removeItem(key: string): Promise<void> {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          console.warn('localStorage.removeItem failed:', e);
-        }
-      },
-    };
+    return new LocalStorageWrapper();
   } else {
-    // Fallback to memory storage
     console.warn('localStorage not available, using memory storage');
     return new MemoryStorage();
   }

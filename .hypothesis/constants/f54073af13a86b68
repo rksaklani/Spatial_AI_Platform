@@ -1,0 +1,4 @@
+# file: E:\Rk_Saklani\3d_rendering\backend\utils\config.py
+# hypothesis_version: 6.151.9
+
+[6379, 8000, '.env', '0.0.0.0', 'HS256', 'development', 'localhost', 'localhost:9000', 'minioadmin', 'spatial_ai_platform']

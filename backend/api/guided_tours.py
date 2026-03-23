@@ -4,15 +4,15 @@ from typing import List
 from bson import ObjectId
 from datetime import datetime
 
-from backend.models.guided_tour import (
+from models.guided_tour import (
     GuidedTourCreate,
     GuidedTourInDB,
     GuidedTourResponse,
     CameraKeyframe
 )
-from backend.models.user import UserInDB
-from backend.api.deps import get_current_user
-from backend.utils.database import get_db
+from models.user import UserInDB
+from api.deps import get_current_user
+from utils.database import get_db
 
 router = APIRouter(prefix="/api/v1/scenes/{scene_id}/tours", tags=["guided_tours"])
 

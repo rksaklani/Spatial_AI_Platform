@@ -1,0 +1,4 @@
+# file: E:\Rk_Saklani\3d_rendering\backend\services\tenant_repository.py
+# hypothesis_version: 6.151.9
+
+[100, '$match', '$set', '$setOnInsert', 'T', '_id', 'annotations', 'created_at', 'guided_tours', 'organization_id', 'processing_jobs', 'scene_objects', 'scene_tiles', 'scenes', 'share_tokens', 'tenant_aggregate', 'tenant_delete_many', 'tenant_delete_one', 'tenant_find_many', 'tenant_find_one', 'tenant_insert_many', 'tenant_insert_one', 'tenant_update_many', 'tenant_update_one', 'updated_at']

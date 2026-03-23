@@ -91,8 +91,17 @@ class ValkeyClient:
     def __init__(self):
         """Initialize Valkey client with connection pool."""
         if not self._initialized:
-            self._initialize_pool()
-            ValkeyClient._initialized = True
+            try:
+                self._initialize_pool()
+                ValkeyClient._initialized = True
+            except RecursionError as e:
+                logger.error(f"Recursion error during Valkey initialization: {e}")
+                self._client = None
+                ValkeyClient._initialized = True  # Mark as initialized to prevent retry
+            except Exception as e:
+                logger.error(f"Unexpected error initializing Valkey client: {e}")
+                self._client = None
+                ValkeyClient._initialized = True  # Mark as initialized to prevent retry
     
     def _initialize_pool(self):
         """

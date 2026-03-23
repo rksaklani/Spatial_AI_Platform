@@ -1,0 +1,4 @@
+# file: E:\Rk_Saklani\3d_rendering\backend\services\collaboration.py
+# hypothesis_version: 6.151.9
+
+[3600, 'cursor_position', 'last_heartbeat', 'session_restored', 'user_id', 'user_joined_scene', 'user_left_scene', 'utf-8']

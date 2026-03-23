@@ -16,6 +16,7 @@ export const sceneApi = baseApi.injectEndpoints({
     // Get all scenes for organization
     getScenes: builder.query<SceneMetadata[], void>({
       query: () => '/scenes',
+      transformResponse: (response: { items: SceneMetadata[] }) => response.items,
       providesTags: (result) =>
         result
           ? [

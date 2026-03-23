@@ -46,7 +46,7 @@ class CameraKeyframe(BaseModel):
     timestamp: float = Field(..., description="Timestamp in seconds from tour start")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "position": [0.0, 1.5, 5.0],
                 "rotation": [0.0, 0.0, 0.0, 1.0],
@@ -61,7 +61,7 @@ class Narration(BaseModel):
     text: str = Field(..., description="Narration text content")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "timestamp": 2.5,
                 "text": "This is the main entrance of the building"
@@ -76,7 +76,7 @@ class GuidedTourCreate(BaseModel):
     narration: List[Narration] = Field(default_factory=list, description="Narration entries")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Building Walkthrough",
                 "camera_path": [
@@ -113,7 +113,7 @@ class GuidedTourInDB(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
@@ -130,7 +130,7 @@ class GuidedTourResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "507f1f77bcf86cd799439011",
                 "scene_id": "507f1f77bcf86cd799439012",
