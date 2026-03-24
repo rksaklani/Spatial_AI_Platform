@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/common/Button';
 import { SceneGrid } from '../components/dashboard/SceneGrid';
 import { UploadDialog } from '../components/dashboard/UploadDialog';
+import { FilterBar } from '../components/dashboard/FilterBar';
 import { useGetScenesQuery, useUploadVideoMutation, useDeleteSceneMutation } from '../store/api/sceneApi';
+import type { SceneStatus } from '../components/common/StatusBadge';
+import type { SceneMetadata } from '../types/scene.types';
 
 /**
  * Dashboard page component - main landing page after login
@@ -21,10 +24,58 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<SceneStatus | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'name'>('createdAt');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  
   // Fetch scenes
   const { data: scenes = [], isLoading } = useGetScenesQuery();
   const [uploadVideo] = useUploadVideoMutation();
   const [deleteScene] = useDeleteSceneMutation();
+
+  // Filter and sort scenes
+  const filteredScenes = useMemo(() => {
+    let filtered = [...scenes];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (scene) =>
+          scene.name.toLowerCase().includes(query) ||
+          scene.sceneId.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((scene) => scene.status === statusFilter);
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === 'createdAt') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      } else if (sortBy === 'updatedAt') {
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [scenes, searchQuery, statusFilter, sortBy]);
+
+  // Calculate active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (statusFilter !== 'all') count++;
+    return count;
+  }, [searchQuery, statusFilter]);
 
   const handleUpload = async (file: File) => {
     try {
@@ -144,8 +195,20 @@ export function DashboardPage() {
           <h2 className="text-2xl font-bold text-text-primary">Recent Scenes</h2>
         </div>
 
+        {/* Filter Bar */}
+        <FilterBar
+          onSearchChange={setSearchQuery}
+          onStatusChange={setStatusFilter}
+          onSortChange={setSortBy}
+          onViewModeChange={setViewMode}
+          currentStatus={statusFilter}
+          currentSort={sortBy}
+          currentViewMode={viewMode}
+          activeFilterCount={activeFilterCount}
+        />
+
         <SceneGrid
-          scenes={scenes}
+          scenes={filteredScenes}
           loading={isLoading}
           onSceneClick={handleSceneClick}
           onSceneDelete={handleSceneDelete}
