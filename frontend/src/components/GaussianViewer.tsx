@@ -27,6 +27,11 @@ interface GaussianViewerProps {
   enableBIMVisualization?: boolean;
   enable2DOverlays?: boolean;
   enableAnimations?: boolean;
+  onSceneReady?: (scene: THREE.Scene, camera: THREE.Camera, domElement: HTMLElement) => void;
+  onCanvasClick?: (event: MouseEvent, domElement: HTMLElement) => void;
+  onCanvasDoubleClick?: (event: MouseEvent, domElement: HTMLElement) => void;
+  onCanvasMouseMove?: (event: MouseEvent, domElement: HTMLElement) => void;
+  onCameraMove?: (cameraPosition: [number, number, number]) => void;
 }
 
 interface AnimationState {
@@ -77,6 +82,11 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   enableBIMVisualization = false,
   enable2DOverlays = false,
   enableAnimations = false,
+  onSceneReady,
+  onCanvasClick,
+  onCanvasDoubleClick,
+  onCanvasMouseMove,
+  onCameraMove,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -214,6 +224,12 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       if (now - lastTileRequestRef.current > tileRequestThrottleMs) {
         lastTileRequestRef.current = now;
         requestTileUpdate();
+        
+        // Notify parent of camera movement for collaboration
+        if (onCameraMove && camera) {
+          const pos = camera.position;
+          onCameraMove([pos.x, pos.y, pos.z]);
+        }
       }
     });
     controlsRef.current = controls;
@@ -247,6 +263,29 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       rendererRef.current.setSize(width, height);
     };
     window.addEventListener('resize', handleResize);
+
+    // Handle click events for annotation creation
+    const handleClick = (event: MouseEvent) => {
+      if (onCanvasClick) {
+        onCanvasClick(event, container);
+      }
+    };
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      if (onCanvasDoubleClick) {
+        onCanvasDoubleClick(event, container);
+      }
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (onCanvasMouseMove) {
+        onCanvasMouseMove(event, container);
+      }
+    };
+
+    container.addEventListener('click', handleClick);
+    container.addEventListener('dblclick', handleDoubleClick);
+    container.addEventListener('mousemove', handleMouseMove);
 
     // Animation loop function
     let lastTime = performance.now();
@@ -313,11 +352,19 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       
       // Initial tile load
       requestTileUpdate();
+      
+      // Notify parent that scene is ready
+      if (onSceneReady) {
+        onSceneReady(scene, camera, container);
+      }
     };
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      container.removeEventListener('click', handleClick);
+      container.removeEventListener('dblclick', handleDoubleClick);
+      container.removeEventListener('mousemove', handleMouseMove);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -411,81 +458,21 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch tiles');
+        throw new Error(`Failed to fetch tiles: ${response.statusText}`);
       }
 
       const data = await response.json();
       const tiles: TileData[] = data.tiles;
 
       // Load tiles progressively by priority
-      loadTilesProgressively(tiles);
+      if (tiles.length > 0) {
+        loadTilesProgressively(tiles);
+      }
     } catch (error) {
       console.error('Failed to request tiles:', error);
       onError?.(error as Error);
     }
   }, [sceneId, onError]);
-
-  // Load tiles progressively
-  const loadTilesProgressively = useCallback(async (tiles: TileData[]) => {
-    let loadedCount = 0;
-
-    for (const tile of tiles) {
-      // Skip if already loaded
-      if (loadedTilesRef.current.has(tile.tile_id)) {
-        loadedCount++;
-        continue;
-      }
-
-      try {
-        await loadTile(tile);
-        loadedCount++;
-        onLoadProgress?.(loadedCount / tiles.length);
-      } catch (error) {
-        console.error(`Failed to load tile ${tile.tile_id}:`, error);
-      }
-    }
-
-    setIsLoading(false);
-  }, [onLoadProgress]);
-
-  // Load a single tile
-  const loadTile = useCallback(async (tile: TileData): Promise<void> => {
-    try {
-      // Download tile PLY file
-      const response = await fetch(`/api/v1/scenes/${sceneId}/tiles/${tile.tile_id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to download tile: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      
-      // Parse PLY and create Three.js geometry
-      const geometry = parsePLYToGeometry(arrayBuffer);
-      
-      // Create material for Gaussian rendering with proper shader
-      const material = createGaussianMaterial();
-      
-      // Create points object
-      const points = new THREE.Points(geometry, material);
-      
-      // Add to scene
-      sceneRef.current?.add(points);
-      
-      // Track loaded tile
-      loadedTilesRef.current.add(tile.tile_id);
-      tileObjectsRef.current.set(tile.tile_id, points);
-      
-      // Update visible Gaussian count
-      setVisibleGaussians(prev => prev + tile.gaussian_count);
-    } catch (error) {
-      throw new Error(`Failed to load tile ${tile.tile_id}: ${error}`);
-    }
-  }, [sceneId]);
 
   // Parse PLY file to Three.js geometry (robust implementation)
   const parsePLYToGeometry = useCallback((arrayBuffer: ArrayBuffer): THREE.BufferGeometry => {
@@ -688,6 +675,86 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       blending: THREE.NormalBlending,
     });
   }, []);
+
+  // Load a single tile
+  const loadTile = useCallback(async (tile: TileData): Promise<void> => {
+    try {
+      // Download tile PLY file
+      const response = await fetch(`/api/v1/scenes/${sceneId}/tiles/${tile.tile_id}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download tile: ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      
+      // Parse PLY and create Three.js geometry
+      const geometry = parsePLYToGeometry(arrayBuffer);
+      
+      // Create material for Gaussian rendering with proper shader
+      const material = createGaussianMaterial();
+      
+      // Create points object
+      const points = new THREE.Points(geometry, material);
+      
+      // Add to scene
+      sceneRef.current?.add(points);
+      
+      // Track loaded tile
+      loadedTilesRef.current.add(tile.tile_id);
+      tileObjectsRef.current.set(tile.tile_id, points);
+      
+      // Update visible Gaussian count
+      setVisibleGaussians(prev => prev + tile.gaussian_count);
+      
+      console.log(`Loaded tile ${tile.tile_id}: ${tile.gaussian_count} Gaussians, LOD: ${tile.lod}, distance: ${tile.distance.toFixed(2)}m`);
+    } catch (error) {
+      console.error(`Failed to load tile ${tile.tile_id}:`, error);
+      throw error;
+    }
+  }, [sceneId, parsePLYToGeometry, createGaussianMaterial]);
+
+  // Load tiles progressively
+  const loadTilesProgressively = useCallback(async (tiles: TileData[]) => {
+    if (tiles.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    let loadedCount = 0;
+    let successCount = 0;
+    let failedCount = 0;
+
+    console.log(`Starting progressive tile loading: ${tiles.length} tiles`);
+
+    for (const tile of tiles) {
+      // Skip if already loaded
+      if (loadedTilesRef.current.has(tile.tile_id)) {
+        loadedCount++;
+        successCount++;
+        onLoadProgress?.((loadedCount / tiles.length) * 100);
+        continue;
+      }
+
+      try {
+        await loadTile(tile);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to load tile ${tile.tile_id}:`, error);
+        failedCount++;
+      }
+
+      loadedCount++;
+      onLoadProgress?.((loadedCount / tiles.length) * 100);
+    }
+
+    console.log(`Tile loading complete: ${successCount} succeeded, ${failedCount} failed, ${tiles.length} total`);
+    setIsLoading(false);
+  }, [onLoadProgress, loadTile]);
 
   // Estimate bandwidth using Network Information API
   const estimateBandwidth = useCallback((): number => {

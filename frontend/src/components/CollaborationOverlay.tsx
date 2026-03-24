@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
+import { websocketService, ConnectionStatus } from '../services/websocket.service';
 
 interface ActiveUser {
-  user_id: string;
-  user_name: string;
-  scene_id: string;
-  joined_at: number;
-  last_heartbeat: number;
+  userId: string;
+  userName: string;
+  color: string;
   cursor_position?: [number, number, number];
 }
 
@@ -16,6 +15,7 @@ interface CollaborationOverlayProps {
   userName: string;
   token: string;
   scene: THREE.Scene;
+  camera: THREE.Camera;
   onAnnotationCreated?: (annotation: any) => void;
   onAnnotationUpdated?: (annotationId: string, changes: any) => void;
   onAnnotationDeleted?: (annotationId: string) => void;
@@ -27,66 +27,174 @@ export const CollaborationOverlay: React.FC<CollaborationOverlayProps> = ({
   userName,
   token,
   scene,
+  camera,
   onAnnotationCreated,
   onAnnotationUpdated,
   onAnnotationDeleted,
 }) => {
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [activeUsers, setActiveUsers] = useState<Map<string, ActiveUser>>(new Map());
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const cursorMarkersRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const cursorMarkersRef = useRef<Map<string, THREE.Group>>(new Map());
+  const cursorUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Handle user:joined event
+  const handleUserJoined = useCallback((data: any) => {
+    console.log('User joined:', data);
+    const newUser: ActiveUser = {
+      userId: data.user_id,
+      userName: data.user_name,
+      color: data.color || generateUserColor(data.user_id),
+    };
+    
+    setActiveUsers((prev) => {
+      const updated = new Map(prev);
+      updated.set(newUser.userId, newUser);
+      return updated;
+    });
+  }, []);
+
+  // Handle user:left event
+  const handleUserLeft = useCallback((data: any) => {
+    console.log('User left:', data);
+    const userIdToRemove = data.user_id;
+    
+    setActiveUsers((prev) => {
+      const updated = new Map(prev);
+      updated.delete(userIdToRemove);
+      return updated;
+    });
+    
+    // Remove cursor marker from scene
+    const marker = cursorMarkersRef.current.get(userIdToRemove);
+    if (marker) {
+      scene.remove(marker);
+      cursorMarkersRef.current.delete(userIdToRemove);
+    }
+  }, [scene]);
+
+  // Handle cursor:move event
+  const handleCursorMove = useCallback((data: any) => {
+    const { user_id, position } = data;
+    
+    // Don't update our own cursor
+    if (user_id === userId) return;
+    
+    // Update user's cursor position in state
+    setActiveUsers((prev) => {
+      const updated = new Map(prev);
+      const user = updated.get(user_id);
+      if (user) {
+        updated.set(user_id, { ...user, cursor_position: position });
+      }
+      return updated;
+    });
+    
+    // Update 3D cursor marker
+    updateCursorMarker(user_id, position);
+  }, [userId]);
+
+  // Handle annotation:created event
+  const handleAnnotationCreated = useCallback((data: any) => {
+    console.log('Annotation created:', data);
+    if (onAnnotationCreated) {
+      onAnnotationCreated(data.annotation);
+    }
+  }, [onAnnotationCreated]);
+
+  // Handle annotation:updated event
+  const handleAnnotationUpdated = useCallback((data: any) => {
+    console.log('Annotation updated:', data);
+    if (onAnnotationUpdated) {
+      onAnnotationUpdated(data.annotation_id, data.changes);
+    }
+  }, [onAnnotationUpdated]);
+
+  // Handle annotation:deleted event
+  const handleAnnotationDeleted = useCallback((data: any) => {
+    console.log('Annotation deleted:', data);
+    if (onAnnotationDeleted) {
+      onAnnotationDeleted(data.annotation_id);
+    }
+  }, [onAnnotationDeleted]);
+
+  // Handle active_users event (initial user list)
+  const handleActiveUsers = useCallback((data: any) => {
+    console.log('Active users:', data);
+    const usersMap = new Map<string, ActiveUser>();
+    
+    if (data.users && Array.isArray(data.users)) {
+      data.users.forEach((user: any) => {
+        usersMap.set(user.user_id, {
+          userId: user.user_id,
+          userName: user.user_name,
+          color: user.color || generateUserColor(user.user_id),
+          cursor_position: user.cursor_position,
+        });
+      });
+    }
+    
+    setActiveUsers(usersMap);
+  }, []);
+
+  // Handle connection status changes
+  const handleStatusChange = useCallback((status: ConnectionStatus) => {
+    setConnectionStatus(status);
+    if (status === 'error') {
+      setError('Connection error. Retrying...');
+    } else if (status === 'connected') {
+      setError(null);
+    }
+  }, []);
+
+  // Handle WebSocket errors
+  const handleError = useCallback((data: any) => {
+    console.error('WebSocket error:', data);
+    setError(data.message || 'An error occurred');
+  }, []);
 
   useEffect(() => {
     // Connect to WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/scenes/${sceneId}/collaborate?token=${token}`;
-    
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    websocketService.connect(sceneId, token);
 
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-      setError(null);
+    // Subscribe to connection status changes
+    const unsubscribeStatus = websocketService.onStatusChange(handleStatusChange);
 
-      // Send join message
-      ws.send(JSON.stringify({
-        type: 'join',
-        user_id: userId,
-        user_name: userName,
-      }));
+    // Subscribe to collaboration events
+    const unsubscribeUserJoined = websocketService.on('user:joined', handleUserJoined);
+    const unsubscribeUserLeft = websocketService.on('user:left', handleUserLeft);
+    const unsubscribeCursorMove = websocketService.on('cursor:move', handleCursorMove);
+    const unsubscribeAnnotationCreated = websocketService.on('annotation:created', handleAnnotationCreated);
+    const unsubscribeAnnotationUpdated = websocketService.on('annotation:updated', handleAnnotationUpdated);
+    const unsubscribeAnnotationDeleted = websocketService.on('annotation:deleted', handleAnnotationDeleted);
+    const unsubscribeActiveUsers = websocketService.on('active_users', handleActiveUsers);
+    const unsubscribeError = websocketService.on('error', handleError);
 
-      // Start heartbeat
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'heartbeat' }));
-        }
-      }, 30000); // 30 seconds
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        handleMessage(message);
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
+    // Start broadcasting local user's cursor movements
+    cursorUpdateIntervalRef.current = setInterval(() => {
+      if (camera && connectionStatus === 'connected') {
+        const cameraPosition = camera.position.toArray() as [number, number, number];
+        // For now, use camera position as cursor position
+        // In a real implementation, you'd use raycasting to get the 3D point under the mouse
+        websocketService.sendCursorMove(cameraPosition, cameraPosition);
       }
-    };
+    }, 100); // Update every 100ms
 
-    ws.onerror = (event) => {
-      console.error('WebSocket error:', event);
-      setError('Connection error');
-    };
+    return () => {
+      // Cleanup: unsubscribe from all events
+      unsubscribeStatus();
+      unsubscribeUserJoined();
+      unsubscribeUserLeft();
+      unsubscribeCursorMove();
+      unsubscribeAnnotationCreated();
+      unsubscribeAnnotationUpdated();
+      unsubscribeAnnotationDeleted();
+      unsubscribeActiveUsers();
+      unsubscribeError();
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-      
-      // Clear heartbeat
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
+      // Stop cursor updates
+      if (cursorUpdateIntervalRef.current) {
+        clearInterval(cursorUpdateIntervalRef.current);
       }
 
       // Clean up cursor markers
@@ -94,103 +202,80 @@ export const CollaborationOverlay: React.FC<CollaborationOverlayProps> = ({
         scene.remove(marker);
       });
       cursorMarkersRef.current.clear();
+
+      // Disconnect WebSocket
+      websocketService.disconnect();
     };
+  }, [
+    sceneId,
+    token,
+    camera,
+    connectionStatus,
+    scene,
+    handleStatusChange,
+    handleUserJoined,
+    handleUserLeft,
+    handleCursorMove,
+    handleAnnotationCreated,
+    handleAnnotationUpdated,
+    handleAnnotationDeleted,
+    handleActiveUsers,
+    handleError,
+  ]);
 
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-      }
-    };
-  }, [sceneId, userId, userName, token, scene]);
-
-  const handleMessage = (message: any) => {
-    switch (message.type) {
-      case 'active_users':
-        setActiveUsers(message.users);
-        break;
-
-      case 'user_joined':
-        setActiveUsers((prev) => [
-          ...prev,
-          {
-            user_id: message.user_id,
-            user_name: message.user_name,
-            scene_id: sceneId,
-            joined_at: Date.now() / 1000,
-            last_heartbeat: Date.now() / 1000,
-          },
-        ]);
-        break;
-
-      case 'user_left':
-        setActiveUsers((prev) =>
-          prev.filter((user) => user.user_id !== message.user_id)
-        );
-        // Remove cursor marker
-        const marker = cursorMarkersRef.current.get(message.user_id);
-        if (marker) {
-          scene.remove(marker);
-          cursorMarkersRef.current.delete(message.user_id);
-        }
-        break;
-
-      case 'cursor_update':
-        updateCursorPosition(message.user_id, message.position);
-        break;
-
-      case 'annotation_created':
-        if (onAnnotationCreated) {
-          onAnnotationCreated(message.annotation);
-        }
-        break;
-
-      case 'annotation_updated':
-        if (onAnnotationUpdated) {
-          onAnnotationUpdated(message.annotation_id, message.changes);
-        }
-        break;
-
-      case 'annotation_deleted':
-        if (onAnnotationDeleted) {
-          onAnnotationDeleted(message.annotation_id);
-        }
-        break;
-
-      case 'error':
-        setError(message.message);
-        console.error('Collaboration error:', message.message);
-        break;
-
-      default:
-        console.warn('Unknown message type:', message.type);
-    }
-  };
-
-  const updateCursorPosition = (userId: string, position: [number, number, number]) => {
+  // Update or create cursor marker in 3D scene
+  const updateCursorMarker = useCallback((userId: string, position: [number, number, number]) => {
     let marker = cursorMarkersRef.current.get(userId);
+    const user = activeUsers.get(userId);
 
     if (!marker) {
-      // Create new cursor marker
-      const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+      // Create new cursor marker group (sphere + label)
+      const group = new THREE.Group();
+      
+      // Create sphere
+      const geometry = new THREE.SphereGeometry(0.15, 16, 16);
       const material = new THREE.MeshBasicMaterial({
-        color: getUserColor(userId),
+        color: user?.color ? parseInt(user.color.replace('#', ''), 16) : generateUserColor(userId),
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.8,
       });
-      marker = new THREE.Mesh(geometry, material);
-      scene.add(marker);
-      cursorMarkersRef.current.set(userId, marker);
+      const sphere = new THREE.Mesh(geometry, material);
+      group.add(sphere);
+      
+      // Create label sprite (optional - can be added later)
+      if (user?.userName) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = 256;
+          canvas.height = 64;
+          context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.font = '24px Arial';
+          context.fillStyle = 'white';
+          context.textAlign = 'center';
+          context.fillText(user.userName, 128, 40);
+          
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.scale.set(2, 0.5, 1);
+          sprite.position.set(0, 0.5, 0);
+          group.add(sprite);
+        }
+      }
+      
+      scene.add(group);
+      cursorMarkersRef.current.set(userId, group);
+      marker = group;
     }
 
     // Update position
     marker.position.set(position[0], position[1], position[2]);
-  };
+  }, [scene, activeUsers]);
 
-  const getUserColor = (userId: string): number => {
-    // Generate consistent color from user ID
+  // Generate consistent color from user ID
+  const generateUserColor = (userId: string): number => {
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
       hash = userId.charCodeAt(i) + ((hash << 5) - hash);
@@ -198,50 +283,13 @@ export const CollaborationOverlay: React.FC<CollaborationOverlayProps> = ({
     return Math.abs(hash) % 0xffffff;
   };
 
-  const sendCursorUpdate = (position: [number, number, number]) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'cursor_move',
-          position,
-        })
-      );
-    }
+  const getColorHex = (userId: string): string => {
+    const user = activeUsers.get(userId);
+    if (user?.color) return user.color;
+    return `#${generateUserColor(userId).toString(16).padStart(6, '0')}`;
   };
 
-  const sendAnnotationCreate = (annotation: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_create',
-          annotation,
-        })
-      );
-    }
-  };
-
-  const sendAnnotationUpdate = (annotationId: string, changes: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_update',
-          annotation_id: annotationId,
-          changes,
-        })
-      );
-    }
-  };
-
-  const sendAnnotationDelete = (annotationId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_delete',
-          annotation_id: annotationId,
-        })
-      );
-    }
-  };
+  const isConnected = connectionStatus === 'connected';
 
   return (
     <div className="collaboration-overlay">

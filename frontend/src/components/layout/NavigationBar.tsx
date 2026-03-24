@@ -70,12 +70,12 @@ export function NavigationBar({
           </div>
 
           {/* Center: Main Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8">
+          {/* <div className="hidden md:flex items-center space-x-8">
             <NavLink to="/dashboard">Dashboard</NavLink>
             <NavLink to="/scenes">Scenes</NavLink>
             <NavLink to="/photos">Photos</NavLink>
             <NavLink to="/help">Help</NavLink>
-          </div>
+          </div> */}
 
           {/* Right: Actions and User Menu */}
           <div className="flex items-center space-x-2">

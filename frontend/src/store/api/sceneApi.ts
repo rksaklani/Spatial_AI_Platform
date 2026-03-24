@@ -66,23 +66,9 @@ export const sceneApi = baseApi.injectEndpoints({
       invalidatesTags: [{ type: 'Scene', id: 'LIST' }],
     }),
 
-    // Import 3D file
-    importFile: builder.mutation<
-      SceneMetadata,
-      { file: File; organizationId: string; format: string }
-    >({
-      query: ({ file, organizationId, format }) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('organizationId', organizationId);
-        formData.append('format', format);
-        return {
-          url: '/scenes/import',
-          method: 'POST',
-          body: formData,
-        };
-      },
-      invalidatesTags: [{ type: 'Scene', id: 'LIST' }],
+    // Get scene jobs
+    getSceneJobs: builder.query<any[], string>({
+      query: (sceneId) => `/scenes/${sceneId}/jobs`,
     }),
 
     // Update scene
@@ -117,7 +103,7 @@ export const {
   useGetScenesQuery,
   useGetSceneTilesQuery,
   useUploadVideoMutation,
-  useImportFileMutation,
   useUpdateSceneMutation,
   useDeleteSceneMutation,
+  useGetSceneJobsQuery,
 } = sceneApi;

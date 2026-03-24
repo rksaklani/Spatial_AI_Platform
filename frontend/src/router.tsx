@@ -10,8 +10,15 @@ const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.H
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const ScenesPage = lazy(() => import('./pages/ScenesPage').then(m => ({ default: m.ScenesPage })));
 const ViewerPage = lazy(() => import('./pages/ViewerPage').then(m => ({ default: m.ViewerPage })));
+const PhotosPage = lazy(() => import('./pages/PhotosPage').then(m => ({ default: m.PhotosPage })));
+const GeospatialPage = lazy(() => import('./pages/GeospatialPage').then(m => ({ default: m.GeospatialPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const CollaborationPage = lazy(() => import('./pages/CollaborationPage').then(m => ({ default: m.CollaborationPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const PhotoInspectorPage = lazy(() => import('./pages/PhotoInspectorPage').then(m => ({ default: m.PhotoInspectorPage })));
+const PublicSceneViewerPage = lazy(() => import('./pages/PublicSceneViewerPage').then(m => ({ default: m.PublicSceneViewerPage })));
 
 // Suspense wrapper for lazy-loaded components
 const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -92,6 +99,24 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: '/scenes',
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <SuspenseWrapper>
+            <ScenesPage />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
+  {
     path: '/scenes/:id',
     element: (
       <ProtectedRoute>
@@ -110,7 +135,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '/photos/:id',
+    path: '/photos',
     element: (
       <ProtectedRoute>
         <AppLayout />
@@ -121,7 +146,71 @@ export const router = createBrowserRouter([
         index: true,
         element: (
           <SuspenseWrapper>
-            <PlaceholderPage title="Photo Inspector" />
+            <PhotosPage />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
+  {
+    path: '/photos/:photoId',
+    element: (
+      <ProtectedRoute>
+        <SuspenseWrapper>
+          <PhotoInspectorPage />
+        </SuspenseWrapper>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/geospatial',
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <SuspenseWrapper>
+            <GeospatialPage />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
+  {
+    path: '/reports',
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <SuspenseWrapper>
+            <ReportsPage />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
+  {
+    path: '/collaboration',
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <SuspenseWrapper>
+            <CollaborationPage />
           </SuspenseWrapper>
         ),
       },
@@ -146,21 +235,19 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Public scene viewer (no auth required)
+  {
+    path: '/public/scenes/:sceneId',
+    element: (
+      <SuspenseWrapper>
+        <PublicSceneViewerPage />
+      </SuspenseWrapper>
+    ),
+  },
+
   // Catch-all redirect
   {
     path: '*',
     element: <Navigate to="/" replace />,
   },
 ]);
-
-// Placeholder component for pages not yet implemented
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="min-h-screen geometric-bg flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-text-primary mb-4">{title}</h1>
-        <p className="text-text-secondary">This page is coming soon</p>
-      </div>
-    </div>
-  );
-}

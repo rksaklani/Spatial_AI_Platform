@@ -77,11 +77,19 @@ async def register(user: UserCreate, background_tasks: BackgroundTasks):
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     OAuth2 compatible token login, get an access token for future requests.
+    Optimized for performance with indexed email lookup.
     """
     db = await get_db()
-    user_doc = await db.users.find_one({"email": form_data.username})
+    
+    # Use projection to only fetch needed fields (faster query)
+    user_doc = await db.users.find_one(
+        {"email": form_data.username},
+        {"_id": 1, "hashed_password": 1, "is_active": 1}
+    )
     
     if not user_doc:
+        # Use same error message for security (don't reveal if email exists)
+        logger.warning("login_failed_user_not_found", email=form_data.username)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect email or password",
@@ -89,15 +97,19 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         
     hashed_password = user_doc.get("hashed_password")
     if not verify_password(form_data.password, hashed_password):
+        logger.warning("login_failed_invalid_password", email=form_data.username)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect email or password",
         )
         
     if not user_doc.get("is_active", True):
+        logger.warning("login_failed_inactive_user", email=form_data.username)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
     user_id = str(user_doc["_id"])
+    logger.info("login_successful", user_id=user_id, email=form_data.username)
+    
     return {
         "access_token": create_access_token(user_id),
         "refresh_token": create_refresh_token(user_id),

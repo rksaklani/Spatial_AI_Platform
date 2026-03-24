@@ -12,3 +12,15 @@ export type { StatusBadgeProps, SceneStatus } from './StatusBadge';
 
 export { LoadingSpinner } from './LoadingSpinner';
 export type { LoadingSpinnerProps } from './LoadingSpinner';
+
+export { Modal } from './Modal';
+export type { ModalProps } from './Modal';
+
+export { Toast, ToastContainer } from './Toast';
+export type { ToastProps, ToastContainerProps } from './Toast';
+
+export { ConnectionStatus } from './ConnectionStatus';
+export type { ConnectionStatus as ConnectionStatusType } from '../../types/websocket.types';
+
+export { ErrorBoundary } from './ErrorBoundary';
+export { ErrorMessage } from './ErrorMessage';

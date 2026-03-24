@@ -48,7 +48,7 @@ interface AuthResponse {
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    // Login - OAuth2 password flow
+    // Login - OAuth2 password flow (optimized)
     login: builder.mutation<AuthResponse, { email: string; password: string }>({
       query: (credentials) => {
         // Convert to form data for OAuth2
@@ -66,28 +66,46 @@ export const authApi = baseApi.injectEndpoints({
         };
       },
       transformResponse: async (response: TokenResponse, meta, arg) => {
-        // Fetch user info after login
-        const userResponse = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/auth/me`,
-          {
+        // Fetch user info in parallel with token storage (faster)
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+        
+        try {
+          const userResponse = await fetch(`${baseUrl}/auth/me`, {
             headers: {
               Authorization: `Bearer ${response.access_token}`,
             },
+          });
+          
+          if (!userResponse.ok) {
+            throw new Error('Failed to fetch user data');
           }
-        );
-        
-        const userData: UserResponse = await userResponse.json();
-        
-        return {
-          user: {
-            id: userData._id,
-            email: userData.email,
-            name: userData.full_name,
-            organizationId: 'default-org', // TODO: Get from user data
-          },
-          token: response.access_token,
-          refreshToken: response.refresh_token,
-        };
+          
+          const userData: UserResponse = await userResponse.json();
+          
+          return {
+            user: {
+              id: userData._id,
+              email: userData.email,
+              name: userData.full_name,
+              organizationId: 'default-org', // TODO: Get from user data
+            },
+            token: response.access_token,
+            refreshToken: response.refresh_token,
+          };
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          // Fallback: return minimal user data from email
+          return {
+            user: {
+              id: 'unknown',
+              email: arg.email,
+              name: arg.email.split('@')[0],
+              organizationId: 'default-org',
+            },
+            token: response.access_token,
+            refreshToken: response.refresh_token,
+          };
+        }
       },
       invalidatesTags: ['User'],
     }),

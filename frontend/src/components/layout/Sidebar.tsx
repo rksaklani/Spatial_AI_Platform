@@ -42,12 +42,12 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const navItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
 
   const navItems = [
-    { to: '/app/dashboard', icon: HomeIcon, label: 'Dashboard' },
-    { to: '/app/scenes', icon: CubeIcon, label: '3D Scenes' },
-    { to: '/app/photos', icon: PhotoIcon, label: 'Photos' },
-    { to: '/app/geospatial', icon: MapIcon, label: 'Geospatial' },
-    { to: '/app/reports', icon: DocumentTextIcon, label: 'Reports' },
-    { to: '/app/collaboration', icon: UsersIcon, label: 'Collaboration' },
+    { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
+    { to: '/scenes', icon: CubeIcon, label: '3D Scenes' },
+    { to: '/photos', icon: PhotoIcon, label: 'Photos' },
+    { to: '/geospatial', icon: MapIcon, label: 'Geospatial' },
+    { to: '/reports', icon: DocumentTextIcon, label: 'Reports' },
+    { to: '/collaboration', icon: UsersIcon, label: 'Collaboration' },
   ];
 
   const handleThemeToggle = () => {
@@ -210,7 +210,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
         <NavLink
           ref={(el) => (navItemsRef.current[navItems.length + 2] = el)}
           onKeyDown={(e) => handleKeyDown(e, navItems.length + 2)}
-          to="/app/settings"
+          to="/settings"
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg ${
               isActive

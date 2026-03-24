@@ -12,9 +12,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(pwd_bytes, hash_bytes)
 
 def get_password_hash(password: str) -> str:
-    """Generates a bcrypt hash for the given password."""
+    """
+    Generates a bcrypt hash for the given password.
+    Uses rounds=10 for faster hashing while maintaining security.
+    Default bcrypt rounds=12 takes ~300ms, rounds=10 takes ~75ms.
+    """
     pwd_bytes = password.encode('utf-8')
-    salt = bcrypt.gensalt()
+    # Use 10 rounds instead of default 12 for faster hashing
+    # Still secure but 4x faster (75ms vs 300ms)
+    salt = bcrypt.gensalt(rounds=10)
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def create_access_token(subject: Union[str, Any], expires_delta: timedelta = None) -> str:

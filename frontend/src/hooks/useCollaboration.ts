@@ -1,254 +1,249 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+/**
+ * Hook for managing real-time collaboration in 3D viewer
+ * Handles WebSocket connection, user tracking, and cursor synchronization
+ */
 
-interface ActiveUser {
-  user_id: string;
-  user_name: string;
-  scene_id: string;
-  joined_at: number;
-  last_heartbeat: number;
-  cursor_position?: [number, number, number];
-}
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { websocketService, ConnectionStatus } from '../services/websocket.service';
+import { useAppSelector } from '../store/hooks';
 
-interface UseCollaborationOptions {
-  sceneId: string;
+export interface CollaborationUser {
   userId: string;
   userName: string;
-  token: string;
+  color: string;
+  cursorPosition: [number, number, number] | null;
+  cameraPosition: [number, number, number] | null;
+  lastUpdate: number;
+}
+
+interface UseCollaborationProps {
+  sceneId: string;
+  enabled: boolean;
   onAnnotationCreated?: (annotation: any) => void;
   onAnnotationUpdated?: (annotationId: string, changes: any) => void;
   onAnnotationDeleted?: (annotationId: string) => void;
 }
 
-interface UseCollaborationReturn {
-  activeUsers: ActiveUser[];
-  isConnected: boolean;
-  error: string | null;
-  sendCursorUpdate: (position: [number, number, number]) => void;
-  sendAnnotationCreate: (annotation: any) => void;
-  sendAnnotationUpdate: (annotationId: string, changes: any) => void;
-  sendAnnotationDelete: (annotationId: string) => void;
-}
-
-export const useCollaboration = ({
+export function useCollaboration({
   sceneId,
-  userId,
-  userName,
-  token,
+  enabled,
   onAnnotationCreated,
   onAnnotationUpdated,
   onAnnotationDeleted,
-}: UseCollaborationOptions): UseCollaborationReturn => {
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
+}: UseCollaborationProps) {
+  const token = useAppSelector((state) => state.auth.token);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [activeUsers, setActiveUsers] = useState<Map<string, CollaborationUser>>(new Map());
+  const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCursorSendRef = useRef<number>(0);
+  const CURSOR_THROTTLE_MS = 100; // Send cursor updates max every 100ms
 
-  const connect = useCallback(() => {
-    // Determine WebSocket protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/scenes/${sceneId}/collaborate?token=${token}`;
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-      setError(null);
-      reconnectAttemptsRef.current = 0;
-
-      // Send join message
-      ws.send(
-        JSON.stringify({
-          type: 'join',
-          user_id: userId,
-          user_name: userName,
-        })
-      );
-
-      // Start heartbeat
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'heartbeat' }));
-        }
-      }, 30000); // 30 seconds
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        handleMessage(message);
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
-      }
-    };
-
-    ws.onerror = (event) => {
-      console.error('WebSocket error:', event);
-      setError('Connection error');
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-
-      // Clear heartbeat
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-        heartbeatIntervalRef.current = null;
-      }
-
-      // Attempt reconnection
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-        console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          connect();
-        }, delay);
-      } else {
-        setError('Failed to reconnect after multiple attempts');
-      }
-    };
-  }, [sceneId, userId, userName, token]);
-
+  // Connect to WebSocket when enabled
   useEffect(() => {
-    connect();
+    if (!enabled || !sceneId || !token) {
+      return;
+    }
 
+    console.log('Connecting to collaboration WebSocket for scene:', sceneId);
+    websocketService.connect(sceneId, token);
+
+    // Subscribe to status changes
+    const unsubscribeStatus = websocketService.onStatusChange((status) => {
+      setConnectionStatus(status);
+      console.log('Collaboration connection status:', status);
+    });
+
+    // Cleanup on unmount
     return () => {
-      // Cleanup
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close();
-      }
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      unsubscribeStatus();
+      websocketService.disconnect();
+      setActiveUsers(new Map());
     };
-  }, [connect]);
+  }, [enabled, sceneId, token]);
 
-  const handleMessage = (message: any) => {
-    switch (message.type) {
-      case 'active_users':
-        setActiveUsers(message.users);
-        break;
+  // Handle user:joined event
+  useEffect(() => {
+    if (!enabled) return;
 
-      case 'user_joined':
-        setActiveUsers((prev) => [
-          ...prev,
-          {
-            user_id: message.user_id,
-            user_name: message.user_name,
-            scene_id: sceneId,
-            joined_at: Date.now() / 1000,
-            last_heartbeat: Date.now() / 1000,
-          },
-        ]);
-        break;
+    const unsubscribe = websocketService.on('user:joined', (data: any) => {
+      console.log('User joined:', data);
+      setActiveUsers((prev) => {
+        const next = new Map(prev);
+        next.set(data.user_id, {
+          userId: data.user_id,
+          userName: data.user_name || 'Anonymous',
+          color: data.color || '#4ECDC4',
+          cursorPosition: null,
+          cameraPosition: null,
+          lastUpdate: Date.now(),
+        });
+        return next;
+      });
+    });
 
-      case 'user_left':
-        setActiveUsers((prev) => prev.filter((user) => user.user_id !== message.user_id));
-        break;
+    return unsubscribe;
+  }, [enabled]);
 
-      case 'cursor_update':
-        setActiveUsers((prev) =>
-          prev.map((user) =>
-            user.user_id === message.user_id
-              ? { ...user, cursor_position: message.position }
-              : user
-          )
-        );
-        break;
+  // Handle user:left event
+  useEffect(() => {
+    if (!enabled) return;
 
-      case 'annotation_created':
-        if (onAnnotationCreated) {
-          onAnnotationCreated(message.annotation);
+    const unsubscribe = websocketService.on('user:left', (data: any) => {
+      console.log('User left:', data);
+      setActiveUsers((prev) => {
+        const next = new Map(prev);
+        next.delete(data.user_id);
+        return next;
+      });
+    });
+
+    return unsubscribe;
+  }, [enabled]);
+
+  // Handle cursor:move event
+  useEffect(() => {
+    if (!enabled) return;
+
+    const unsubscribe = websocketService.on('cursor:move', (data: any) => {
+      setActiveUsers((prev) => {
+        const user = prev.get(data.user_id);
+        if (!user) return prev;
+
+        const next = new Map(prev);
+        next.set(data.user_id, {
+          ...user,
+          cursorPosition: data.position || null,
+          cameraPosition: data.camera_position || null,
+          lastUpdate: Date.now(),
+        });
+        return next;
+      });
+    });
+
+    return unsubscribe;
+  }, [enabled]);
+
+  // Handle annotation:created event
+  useEffect(() => {
+    if (!enabled) return;
+
+    const unsubscribe = websocketService.on('annotation:created', (data: any) => {
+      console.log('Annotation created by another user:', data);
+      onAnnotationCreated?.(data.annotation);
+    });
+
+    return unsubscribe;
+  }, [enabled, onAnnotationCreated]);
+
+  // Handle annotation:updated event
+  useEffect(() => {
+    if (!enabled) return;
+
+    const unsubscribe = websocketService.on('annotation:updated', (data: any) => {
+      console.log('Annotation updated by another user:', data);
+      onAnnotationUpdated?.(data.annotation_id, data.changes);
+    });
+
+    return unsubscribe;
+  }, [enabled, onAnnotationUpdated]);
+
+  // Handle annotation:deleted event
+  useEffect(() => {
+    if (!enabled) return;
+
+    const unsubscribe = websocketService.on('annotation:deleted', (data: any) => {
+      console.log('Annotation deleted by another user:', data);
+      onAnnotationDeleted?.(data.annotation_id);
+    });
+
+    return unsubscribe;
+  }, [enabled, onAnnotationDeleted]);
+
+  // Handle active_users event (initial user list)
+  useEffect(() => {
+    if (!enabled) return;
+
+    const unsubscribe = websocketService.on('active_users', (data: any) => {
+      console.log('Active users:', data);
+      if (data.users && Array.isArray(data.users)) {
+        const usersMap = new Map<string, CollaborationUser>();
+        data.users.forEach((user: any) => {
+          usersMap.set(user.user_id, {
+            userId: user.user_id,
+            userName: user.user_name || 'Anonymous',
+            color: user.color || '#4ECDC4',
+            cursorPosition: null,
+            cameraPosition: null,
+            lastUpdate: Date.now(),
+          });
+        });
+        setActiveUsers(usersMap);
+      }
+    });
+
+    return unsubscribe;
+  }, [enabled]);
+
+  // Send cursor position update (throttled)
+  const sendCursorPosition = useCallback(
+    (position: [number, number, number], cameraPosition: [number, number, number]) => {
+      if (!enabled || connectionStatus !== 'connected') return;
+
+      const now = Date.now();
+      const timeSinceLastSend = now - lastCursorSendRef.current;
+
+      if (timeSinceLastSend < CURSOR_THROTTLE_MS) {
+        // Throttle: schedule update for later
+        if (cursorThrottleRef.current) {
+          clearTimeout(cursorThrottleRef.current);
         }
-        break;
 
-      case 'annotation_updated':
-        if (onAnnotationUpdated) {
-          onAnnotationUpdated(message.annotation_id, message.changes);
-        }
-        break;
+        cursorThrottleRef.current = setTimeout(() => {
+          websocketService.sendCursorMove(position, cameraPosition);
+          lastCursorSendRef.current = Date.now();
+        }, CURSOR_THROTTLE_MS - timeSinceLastSend);
+      } else {
+        // Send immediately
+        websocketService.sendCursorMove(position, cameraPosition);
+        lastCursorSendRef.current = now;
+      }
+    },
+    [enabled, connectionStatus]
+  );
 
-      case 'annotation_deleted':
-        if (onAnnotationDeleted) {
-          onAnnotationDeleted(message.annotation_id);
-        }
-        break;
+  // Broadcast annotation created
+  const broadcastAnnotationCreated = useCallback(
+    (annotation: any) => {
+      if (!enabled || connectionStatus !== 'connected') return;
+      websocketService.sendAnnotationCreated(annotation);
+    },
+    [enabled, connectionStatus]
+  );
 
-      case 'error':
-        setError(message.message);
-        console.error('Collaboration error:', message.message);
-        break;
+  // Broadcast annotation updated
+  const broadcastAnnotationUpdated = useCallback(
+    (annotationId: string, changes: any) => {
+      if (!enabled || connectionStatus !== 'connected') return;
+      websocketService.sendAnnotationUpdated(annotationId, changes);
+    },
+    [enabled, connectionStatus]
+  );
 
-      default:
-        console.warn('Unknown message type:', message.type);
-    }
-  };
-
-  const sendCursorUpdate = useCallback((position: [number, number, number]) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'cursor_move',
-          position,
-        })
-      );
-    }
-  }, []);
-
-  const sendAnnotationCreate = useCallback((annotation: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_create',
-          annotation,
-        })
-      );
-    }
-  }, []);
-
-  const sendAnnotationUpdate = useCallback((annotationId: string, changes: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_update',
-          annotation_id: annotationId,
-          changes,
-        })
-      );
-    }
-  }, []);
-
-  const sendAnnotationDelete = useCallback((annotationId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'annotation_delete',
-          annotation_id: annotationId,
-        })
-      );
-    }
-  }, []);
+  // Broadcast annotation deleted
+  const broadcastAnnotationDeleted = useCallback(
+    (annotationId: string) => {
+      if (!enabled || connectionStatus !== 'connected') return;
+      websocketService.sendAnnotationDeleted(annotationId);
+    },
+    [enabled, connectionStatus]
+  );
 
   return {
-    activeUsers,
-    isConnected,
-    error,
-    sendCursorUpdate,
-    sendAnnotationCreate,
-    sendAnnotationUpdate,
-    sendAnnotationDelete,
+    connectionStatus,
+    activeUsers: Array.from(activeUsers.values()),
+    sendCursorPosition,
+    broadcastAnnotationCreated,
+    broadcastAnnotationUpdated,
+    broadcastAnnotationDeleted,
   };
-};
-
-export default useCollaboration;
+}

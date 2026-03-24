@@ -91,6 +91,13 @@ class ValkeyClient:
     def __init__(self):
         """Initialize Valkey client with connection pool."""
         if not self._initialized:
+            # Check if Valkey is enabled in settings
+            if not settings.valkey_enabled:
+                logger.info("Valkey is disabled in configuration")
+                self._client = None
+                ValkeyClient._initialized = True
+                return
+                
             try:
                 self._initialize_pool()
                 ValkeyClient._initialized = True
@@ -99,7 +106,7 @@ class ValkeyClient:
                 self._client = None
                 ValkeyClient._initialized = True  # Mark as initialized to prevent retry
             except Exception as e:
-                logger.error(f"Unexpected error initializing Valkey client: {e}")
+                logger.warning(f"Valkey unavailable (this is optional): {e}")
                 self._client = None
                 ValkeyClient._initialized = True  # Mark as initialized to prevent retry
     
@@ -140,14 +147,14 @@ class ValkeyClient:
             )
             
         except (ConnectionError, TimeoutError) as e:
-            logger.error(f"Failed to connect to Valkey: {e}")
+            logger.warning(f"Valkey unavailable (optional service): {e}")
             # Don't raise - allow graceful degradation
             self._client = None
         except Exception as e:
-            logger.error(f"Unexpected error initializing Valkey client: {e}")
+            logger.warning(f"Valkey initialization failed (optional service): {e}")
             self._client = None
     
-    def _test_connection_with_retry(self, max_attempts: int = 3):
+    def _test_connection_with_retry(self, max_attempts: int = 2):
         """Test connection with retry logic."""
         for attempt in range(max_attempts):
             try:
@@ -155,8 +162,8 @@ class ValkeyClient:
                 return True
             except (ConnectionError, TimeoutError) as e:
                 if attempt < max_attempts - 1:
-                    delay = RETRY_DELAY_BASE * (2 ** attempt)
-                    logger.warning(f"Valkey ping failed (attempt {attempt + 1}), retrying in {delay}s")
+                    delay = 0.5
+                    logger.debug(f"Valkey ping attempt {attempt + 1} failed, retrying...")
                     time.sleep(delay)
                 else:
                     raise

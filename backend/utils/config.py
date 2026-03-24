@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_name: str = "spatial_ai_platform"
     
     # Valkey/Redis
+    valkey_enabled: bool = True  # Set to False to disable Valkey
     valkey_host: str = "localhost"
     valkey_port: int = 6379
     valkey_db: int = 0
@@ -43,6 +44,10 @@ class Settings(BaseSettings):
     
     # Environment
     environment: str = "development"
+    
+    # GPU Configuration (for 3D reconstruction)
+    cuda_visible_devices: Optional[str] = "0"
+    gaussian_splatting_path: Optional[str] = None
     
     class Config:
         env_file = ".env"

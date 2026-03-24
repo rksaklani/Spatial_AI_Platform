@@ -7,6 +7,7 @@ export interface SceneCardProps {
   scene: SceneMetadata;
   onClick: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   scene,
   onClick,
   onDelete,
+  onEdit,
 }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -37,8 +39,15 @@ export const SceneCard: React.FC<SceneCardProps> = ({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onDelete && confirm(`Are you sure you want to delete "${scene.name}"?`)) {
+    if (onDelete) {
       onDelete();
+    }
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit();
     }
   };
 
@@ -144,14 +153,24 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         </div>
 
         {/* Actions */}
-        {onDelete && (
+        {(onEdit || onDelete) && (
           <div className="flex gap-2 pt-3 border-t border-border-color">
-            <button
-              onClick={handleDelete}
-              className="flex-1 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors duration-200"
-            >
-              Delete
-            </button>
+            {onEdit && (
+              <button
+                onClick={handleEdit}
+                className="flex-1 px-3 py-2 text-sm text-accent-primary hover:text-accent-secondary hover:bg-accent-primary/10 rounded-lg transition-colors duration-200"
+              >
+                Edit
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors duration-200"
+              >
+                Delete
+              </button>
+            )}
           </div>
         )}
       </div>

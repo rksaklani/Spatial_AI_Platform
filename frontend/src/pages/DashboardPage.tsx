@@ -1,10 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/common/Button';
+import { ToastContainer } from '../components/common/Toast';
 import { SceneGrid } from '../components/dashboard/SceneGrid';
 import { UploadDialog } from '../components/dashboard/UploadDialog';
+import { SceneEditDialog } from '../components/dashboard/SceneEditDialog';
+import { DeleteSceneDialog } from '../components/dashboard/DeleteSceneDialog';
 import { FilterBar } from '../components/dashboard/FilterBar';
 import { useGetScenesQuery, useUploadVideoMutation, useDeleteSceneMutation } from '../store/api/sceneApi';
+import { useToast } from '../hooks/useToast';
 import type { SceneStatus } from '../components/common/StatusBadge';
 import type { SceneMetadata } from '../types/scene.types';
 
@@ -22,7 +26,11 @@ import type { SceneMetadata } from '../types/scene.types';
  */
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { toasts, showToast, hideToast } = useToast();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedScene, setSelectedScene] = useState<SceneMetadata | null>(null);
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,17 +102,45 @@ export function DashboardPage() {
   };
 
   const handleSceneDelete = async (sceneId: string) => {
+    const scene = scenes.find(s => s.sceneId === sceneId);
+    if (scene) {
+      setSelectedScene(scene);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  const handleDeleteConfirm = async (sceneId: string) => {
     try {
       await deleteScene(sceneId).unwrap();
-      // Success - the scene list will automatically refresh via RTK Query
+      showToast('Scene deleted successfully', 'success');
+      setDeleteDialogOpen(false);
+      setSelectedScene(null);
     } catch (error) {
       console.error('Delete failed:', error);
-      // TODO: Show error toast
+      showToast('Failed to delete scene. Please try again.', 'error');
+      throw error; // Re-throw to keep dialog open
     }
+  };
+
+  const handleSceneEdit = (sceneId: string) => {
+    const scene = scenes.find(s => s.sceneId === sceneId);
+    if (scene) {
+      setSelectedScene(scene);
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleEditSuccess = () => {
+    // Scene list will automatically refresh via RTK Query cache invalidation
+    setEditDialogOpen(false);
+    setSelectedScene(null);
   };
 
   return (
     <div className="min-h-screen">
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onClose={hideToast} />
+
       {/* Header Section */}
       <div className="bg-gradient-to-r from-secondary-bg to-primary-bg border-b border-border-color mb-8">
         <div className="px-8 py-6">
@@ -212,6 +248,7 @@ export function DashboardPage() {
           loading={isLoading}
           onSceneClick={handleSceneClick}
           onSceneDelete={handleSceneDelete}
+          onSceneEdit={handleSceneEdit}
         />
       </div>
 
@@ -220,6 +257,33 @@ export function DashboardPage() {
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onUpload={handleUpload}
+        onUploadComplete={(sceneId) => {
+          console.log('Upload complete, scene ID:', sceneId);
+          // Optionally navigate to the scene viewer
+          // navigate(`/scenes/${sceneId}`);
+        }}
+      />
+
+      {/* Edit Dialog */}
+      <SceneEditDialog
+        open={editDialogOpen}
+        scene={selectedScene}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setSelectedScene(null);
+        }}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* Delete Dialog */}
+      <DeleteSceneDialog
+        open={deleteDialogOpen}
+        scene={selectedScene}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setSelectedScene(null);
+        }}
+        onConfirm={handleDeleteConfirm}
       />
     </div>
   );

@@ -18,6 +18,8 @@ import { baseApi } from './api/baseApi';
 import authReducer from './slices/authSlice';
 import sceneReducer from './slices/sceneSlice';
 import uiReducer from './slices/uiSlice';
+import notificationReducer from './slices/notificationSlice';
+import preferencesReducer from './slices/preferencesSlice';
 import { apiMiddleware } from './middleware/apiMiddleware';
 
 // Persist configuration
@@ -25,7 +27,7 @@ const persistConfig = {
   key: 'root',
   version: 1,
   storage,
-  whitelist: ['auth'], // Only persist auth state
+  whitelist: ['auth', 'preferences', 'notifications'], // Persist auth, preferences, and notifications
   blacklist: [baseApi.reducerPath], // Don't persist API cache
 };
 
@@ -35,6 +37,8 @@ const rootReducer = combineReducers({
   auth: authReducer,
   scene: sceneReducer,
   ui: uiReducer,
+  notifications: notificationReducer,
+  preferences: preferencesReducer,
 });
 
 // Create persisted reducer
