@@ -2,11 +2,17 @@ import { useParams } from 'react-router-dom';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { GaussianViewer } from '../components/GaussianViewer';
+import { ModelViewer } from '../components/ModelViewer';
 import { ViewerToolbar, AnnotationToolbar, AnnotationPreview } from '../components/viewer';
 import { CollaborationOverlay } from '../components/CollaborationOverlay';
 import { CollaborationPanel } from '../components/collaboration/CollaborationPanel';
+import { ShareDialog } from '../components/sharing/ShareDialog';
 import { useAnnotationCreation } from '../hooks/useAnnotationCreation';
 import { useCollaboration } from '../hooks/useCollaboration';
+import { websocketService } from '../services/websocket.service';
+import { useAppSelector } from '../store/hooks';
+import { useGetSceneByIdQuery } from '../store/api/sceneApi';
+import { ShareIcon } from '@heroicons/react/24/outline';
 import type { AnnotationType, AnnotationMode } from '../hooks/useAnnotationCreation';
 
 /**
@@ -20,6 +26,11 @@ export function ViewerPage() {
   const [showFps, setShowFps] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [fps, setFps] = useState(0);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  
+  // Fetch scene data
+  const { data: scene } = useGetSceneByIdQuery(sceneId || '', { skip: !sceneId });
+  const token = useAppSelector(state => state.auth.token);
   
   // Annotation state
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('view');
@@ -55,6 +66,17 @@ export function ViewerPage() {
       console.log('Remote annotation deleted:', annotationId);
     },
   });
+
+  // Connect WebSocket on mount
+  useEffect(() => {
+    if (sceneId && token) {
+      websocketService.connect(sceneId, token);
+      
+      return () => {
+        websocketService.disconnect();
+      };
+    }
+  }, [sceneId, token]);
 
   // Annotation creation hook
   const {
@@ -192,20 +214,41 @@ export function ViewerPage() {
 
   return (
     <div className="w-full h-screen relative">
-      <GaussianViewer 
-        sceneId={sceneId}
-        onError={(error) => console.error('Viewer error:', error)}
-        onLoadProgress={(progress) => console.log('Load progress:', progress)}
-        onFpsUpdate={handleFpsUpdate}
-        enableBIMVisualization={true}
-        enable2DOverlays={true}
-        enableAnimations={true}
-        onSceneReady={handleSceneReady}
-        onCanvasClick={handleAnnotationClick}
-        onCanvasDoubleClick={handleAnnotationDoubleClick}
-        onCanvasMouseMove={handleAnnotationMouseMove}
-        onCameraMove={handleCameraMove}
-      />
+      {/* Share Button - Fixed Position */}
+      <button
+        onClick={() => setShareDialogOpen(true)}
+        className="absolute top-4 right-4 z-20 bg-surface-elevated/95 backdrop-blur-sm border border-border-subtle rounded-lg px-4 py-2 shadow-lg hover:bg-surface-elevated transition-colors flex items-center gap-2"
+        title="Share scene"
+      >
+        <ShareIcon className="w-5 h-5 text-text-primary" />
+        <span className="text-sm font-medium text-text-primary">Share</span>
+      </button>
+
+      {/* Render appropriate viewer based on file type */}
+      {scene && (scene.format === 'glb' || scene.format === 'gltf' || scene.format === 'obj' || scene.format === 'ply') ? (
+        <ModelViewer
+          sceneId={sceneId}
+          modelUrl={scene.fileUrl || `/api/v1/scenes/${sceneId}/download`}
+          modelType={scene.format as 'glb' | 'gltf' | 'obj' | 'ply' | 'splat'}
+          onError={(error) => console.error('Viewer error:', error)}
+          onLoadProgress={(progress) => console.log('Load progress:', progress)}
+        />
+      ) : (
+        <GaussianViewer 
+          sceneId={sceneId}
+          onError={(error) => console.error('Viewer error:', error)}
+          onLoadProgress={(progress) => console.log('Load progress:', progress)}
+          onFpsUpdate={handleFpsUpdate}
+          enableBIMVisualization={true}
+          enable2DOverlays={true}
+          enableAnimations={true}
+          onSceneReady={handleSceneReady}
+          onCanvasClick={handleAnnotationClick}
+          onCanvasDoubleClick={handleAnnotationDoubleClick}
+          onCanvasMouseMove={handleAnnotationMouseMove}
+          onCameraMove={handleCameraMove}
+        />
+      )}
       
       {/* Collaboration overlay showing other users' cursors */}
       <CollaborationOverlay
@@ -272,6 +315,16 @@ export function ViewerPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         </button>
+      )}
+
+      {/* Share Dialog */}
+      {scene && (
+        <ShareDialog
+          open={shareDialogOpen}
+          sceneId={sceneId || ''}
+          sceneName={scene.name}
+          onClose={() => setShareDialogOpen(false)}
+        />
       )}
     </div>
   );

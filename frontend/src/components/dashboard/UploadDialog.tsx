@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import axios, { type CancelTokenSource } from 'axios';
 import { Button } from '../common/Button';
+import { useAppSelector } from '../../store/hooks';
 
 export interface UploadDialogProps {
   open: boolean;
@@ -34,6 +35,9 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
   onUpload,
   onUploadComplete,
 }) => {
+  // Get auth token from Redux store
+  const token = useAppSelector(state => state.auth.token);
+  
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +115,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
 
     try {
       const formData = new FormData();
-      formData.append('video', selectedFile);
+      formData.append('file', selectedFile);
       
       // Get API base URL from environment
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -119,6 +123,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
       const response = await axios.post(`${apiBaseUrl}/scenes/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
         },
         cancelToken: cancelTokenRef.current.token,
         onUploadProgress: (progressEvent) => {

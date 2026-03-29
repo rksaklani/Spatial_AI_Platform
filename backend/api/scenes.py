@@ -12,7 +12,7 @@ Phase 2 Task 4: Video Upload System
 import os
 import uuid
 import mimetypes
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -386,6 +386,15 @@ async def get_scene(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to this scene"
             )
+    
+    # Add file_url for imported 3D files
+    if scene.get("source_type") == "import" and scene.get("source_path"):
+        minio = get_minio_client()
+        scene["file_url"] = minio.presigned_get_object(
+            "scenes",
+            scene["source_path"],
+            expires=timedelta(hours=1)
+        )
     
     return SceneResponse(**scene)
 

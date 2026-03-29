@@ -115,6 +115,7 @@ class SceneInDB(SceneBase):
     
     # Source info
     source_type: SceneType = SceneType.VIDEO
+    source_format: Optional[str] = None  # File extension: glb, gltf, obj, ply, etc.
     original_filename: str
     file_size_bytes: int
     mime_type: str
@@ -158,6 +159,7 @@ class SceneResponse(SceneBase):
     organization_id: str
     owner_id: str
     source_type: str
+    source_format: Optional[str] = None
     original_filename: str
     file_size_bytes: int
     status: str
@@ -169,6 +171,7 @@ class SceneResponse(SceneBase):
     camera_config: Optional[CameraConfiguration] = None
     is_public: bool
     thumbnail_url: Optional[str] = None
+    file_url: Optional[str] = None  # Direct download URL for imported 3D files
     created_at: datetime
     updated_at: datetime
     processing_started_at: Optional[datetime] = None

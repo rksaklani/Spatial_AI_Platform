@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CameraLimitsController } from './CameraLimits';
+import { getTileManager } from '../services/tileManager.service';
 import type { CameraConfiguration } from '../types/camera.types';
 
 interface GaussianViewerProps {
@@ -103,6 +104,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   const animationMixerRef = useRef<THREE.AnimationMixer | null>(null);
   const animationActionsRef = useRef<THREE.AnimationAction[]>([]);
   const cameraLimitsRef = useRef<CameraLimitsController | null>(null);
+  const tileManagerRef = useRef(getTileManager());
 
   const [isLoading, setIsLoading] = useState(true);
   const [fps, setFps] = useState(0);
@@ -419,50 +421,36 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     }
   }, [sceneId]);
 
-  // Request tile update based on camera position
+  // Request tile update based on camera position using TileManager
   const requestTileUpdate = useCallback(async () => {
     if (!cameraRef.current || !controlsRef.current) return;
 
     const camera = cameraRef.current;
-    const controls = controlsRef.current;
-
-    // Get camera parameters
-    const position = camera.position.toArray();
-    const direction = new THREE.Vector3()
-      .subVectors(controls.target, camera.position)
-      .normalize()
-      .toArray();
+    const tileManager = tileManagerRef.current;
 
     try {
-      // Estimate bandwidth (simplified)
-      const bandwidth = estimateBandwidth();
+      // Use TileManager to request tiles with frustum culling and prioritization
+      const tiles = await tileManager.requestTiles(
+        sceneId,
+        camera,
+        async (request) => {
+          // API client function
+          const response = await fetch(`/api/v1/scenes/${sceneId}/tiles`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify(request),
+          });
 
-      // Request tiles from API
-      const response = await fetch(`/api/v1/scenes/${sceneId}/tiles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          camera: {
-            position,
-            direction,
-            fov: camera.fov,
-            near: camera.near,
-            far: camera.far,
-          },
-          bandwidth_mbps: bandwidth,
-          max_tiles: 50,
-        }),
-      });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch tiles: ${response.statusText}`);
+          }
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tiles: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const tiles: TileData[] = data.tiles;
+          return await response.json();
+        }
+      );
 
       // Load tiles progressively by priority
       if (tiles.length > 0) {
@@ -678,6 +666,17 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
 
   // Load a single tile
   const loadTile = useCallback(async (tile: TileData): Promise<void> => {
+    const tileManager = tileManagerRef.current;
+    
+    // Check if already loading
+    if (tileManager.isTileLoading(tile.tile_id)) {
+      return;
+    }
+
+    // Mark as loading
+    tileManager.markTileLoading(tile.tile_id);
+    const startTime = performance.now();
+
     try {
       // Download tile PLY file
       const response = await fetch(`/api/v1/scenes/${sceneId}/tiles/${tile.tile_id}`, {
@@ -691,6 +690,10 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      const downloadTime = performance.now() - startTime;
+      
+      // Update bandwidth estimate
+      tileManager.updateBandwidthEstimate(arrayBuffer.byteLength, downloadTime);
       
       // Parse PLY and create Three.js geometry
       const geometry = parsePLYToGeometry(arrayBuffer);
@@ -707,12 +710,14 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       // Track loaded tile
       loadedTilesRef.current.add(tile.tile_id);
       tileObjectsRef.current.set(tile.tile_id, points);
+      tileManager.markTileLoaded(tile.tile_id);
       
       // Update visible Gaussian count
       setVisibleGaussians(prev => prev + tile.gaussian_count);
       
-      console.log(`Loaded tile ${tile.tile_id}: ${tile.gaussian_count} Gaussians, LOD: ${tile.lod}, distance: ${tile.distance.toFixed(2)}m`);
+      console.log(`Loaded tile ${tile.tile_id}: ${tile.gaussian_count} Gaussians, LOD: ${tile.lod}, distance: ${tile.distance.toFixed(2)}m, bandwidth: ${tileManager.getCacheStats().bandwidthEstimate.toFixed(2)} Mbps`);
     } catch (error) {
+      tileManager.markTileLoaded(tile.tile_id); // Remove from loading set
       console.error(`Failed to load tile ${tile.tile_id}:`, error);
       throw error;
     }

@@ -9,6 +9,7 @@ import {
   ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../common/Button';
+import { OrganizationSwitcher } from './OrganizationSwitcher';
 
 interface NavigationBarProps {
   organizationName?: string;
@@ -78,7 +79,10 @@ export function NavigationBar({
           </div> */}
 
           {/* Right: Actions and User Menu */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
+            {/* Organization Switcher */}
+            <OrganizationSwitcher />
+
             {/* Notification Bell */}
             <div className="relative">
               <Button

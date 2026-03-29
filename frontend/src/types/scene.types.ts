@@ -14,6 +14,8 @@ export interface SceneMetadata {
   name: string;
   sourceType: 'video' | 'import';
   sourceFormat: string;
+  format?: 'glb' | 'gltf' | 'obj' | 'ply' | 'splat' | 'las' | 'e57' | 'fbx' | 'dae' | 'stl' | 'ifc' | 'dxf';
+  fileUrl?: string;
   status: 'uploaded' | 'processing' | 'completed' | 'failed';
   bounds: BoundingBox;
   tileCount: number;
@@ -29,4 +31,7 @@ export interface SceneTile {
   url: string;
   lod: 'high' | 'medium' | 'low';
   priority: number;
+  distance?: number;
+  bounds?: BoundingBox;
+  gaussianCount?: number;
 }

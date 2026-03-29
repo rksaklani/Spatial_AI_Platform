@@ -52,8 +52,13 @@ export const store = configureStore({
       serializableCheck: {
         // Ignore redux-persist actions
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
-        // Ignore these field paths in all actions
-        ignoredActionPaths: ['payload.timestamp', 'meta.baseQueryMeta'],
+        // Ignore these field paths in all actions (including File objects in uploads)
+        ignoredActionPaths: [
+          'payload.timestamp',
+          'meta.baseQueryMeta',
+          'meta.arg.originalArgs.file', // Ignore File objects in upload mutations
+          'payload.file', // Ignore File objects in payloads
+        ],
         // Ignore these paths in the state
         ignoredPaths: ['scene.currentScene.metadata', 'scene.loadedTiles'],
       },

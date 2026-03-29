@@ -8,6 +8,7 @@ export interface SceneGridProps {
   onSceneClick: (sceneId: string) => void;
   onSceneDelete?: (sceneId: string) => void;
   onSceneEdit?: (sceneId: string) => void;
+  onSceneShare?: (sceneId: string) => void;
 }
 
 /**
@@ -27,6 +28,7 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
   onSceneClick,
   onSceneDelete,
   onSceneEdit,
+  onSceneShare,
 }) => {
   // Loading skeleton
   if (loading) {
@@ -88,6 +90,7 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
           onClick={() => onSceneClick(scene.sceneId)}
           onDelete={onSceneDelete ? () => onSceneDelete(scene.sceneId) : undefined}
           onEdit={onSceneEdit ? () => onSceneEdit(scene.sceneId) : undefined}
+          onShare={onSceneShare ? () => onSceneShare(scene.sceneId) : undefined}
         />
       ))}
     </div>
