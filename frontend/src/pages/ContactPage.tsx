@@ -43,7 +43,7 @@ export function ContactPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Contact Information */}
           <div className="space-y-6">
-            <div className="bg-secondary-bg rounded-xl p-6 border border-border-color">
+            <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-6 border border-border-color shadow-glass">
               <div className="flex items-start space-x-4">
                 <div className="text-accent-primary">
                   <EnvelopeIcon className="h-6 w-6" />
@@ -56,7 +56,7 @@ export function ContactPage() {
               </div>
             </div>
 
-            <div className="bg-secondary-bg rounded-xl p-6 border border-border-color">
+            <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-6 border border-border-color shadow-glass">
               <div className="flex items-start space-x-4">
                 <div className="text-accent-primary">
                   <PhoneIcon className="h-6 w-6" />
@@ -69,7 +69,7 @@ export function ContactPage() {
               </div>
             </div>
 
-            <div className="bg-secondary-bg rounded-xl p-6 border border-border-color">
+            <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-6 border border-border-color shadow-glass">
               <div className="flex items-start space-x-4">
                 <div className="text-accent-primary">
                   <MapPinIcon className="h-6 w-6" />
@@ -90,7 +90,7 @@ export function ContactPage() {
 
           {/* Contact Form */}
           <div className="lg:col-span-2">
-            <div className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+            <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
               <h2 className="text-2xl font-bold text-text-primary mb-6">Send us a message</h2>
               
               {submitted && (

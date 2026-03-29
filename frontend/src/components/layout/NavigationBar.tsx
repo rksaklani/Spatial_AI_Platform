@@ -42,7 +42,7 @@ export function NavigationBar({
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/95 backdrop-blur-xl border-b border-border-color">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/80 backdrop-blur-xl border-b border-border-color shadow-glass">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Left: Logo and Organization Name */}

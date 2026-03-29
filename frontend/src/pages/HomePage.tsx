@@ -12,7 +12,7 @@ export function HomePage() {
   return (
     <div className="min-h-screen geometric-bg flex flex-col">
       {/* Public Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/95 backdrop-blur-xl border-b border-border-color">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/80 backdrop-blur-xl border-b border-border-color shadow-glass">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             {/* Logo and Brand */}
@@ -185,7 +185,7 @@ export function HomePage() {
               <div className="relative hidden md:block">
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   {/* Large preview top */}
-                  <div className="col-span-2 aspect-video bg-secondary-bg rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300">
+                  <div className="col-span-2 aspect-video bg-secondary-bg/60 backdrop-blur-md rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300 shadow-glass">
                     <div className="w-full h-full flex items-center justify-center">
                       <svg
                         className="h-16 w-16 sm:h-20 sm:w-20 text-text-muted group-hover:text-accent-primary transition-colors"
@@ -212,7 +212,7 @@ export function HomePage() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className="aspect-square bg-secondary-bg rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300"
+                      className="aspect-square bg-secondary-bg/60 backdrop-blur-md rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300 shadow-glass"
                     >
                       <div className="w-full h-full flex items-center justify-center">
                         <svg
@@ -262,7 +262,7 @@ export function HomePage() {
               {demos.map((demo, index) => (
                 <div
                   key={index}
-                  className="bg-secondary-bg rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300"
+                  className="bg-secondary-bg/60 backdrop-blur-md rounded-xl border border-border-color overflow-hidden group hover:border-accent-primary transition-all duration-300 shadow-glass"
                 >
                   {/* Demo Icon */}
                   <div className="p-6 sm:p-8 flex items-center space-x-4">
@@ -316,7 +316,7 @@ export function HomePage() {
         </div>
 
         {/* Features Section */}
-        <div id="features" className="py-12 sm:py-16 lg:py-20 bg-secondary-bg/50">
+        <div id="features" className="py-12 sm:py-16 lg:py-20 bg-secondary-bg/30 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-12 sm:mb-16">
               <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-3 sm:mb-4">
@@ -331,7 +331,7 @@ export function HomePage() {
               {features.map((feature, index) => (
                 <div
                   key={index}
-                  className="bg-secondary-bg rounded-xl p-6 sm:p-8 border border-border-color hover:border-accent-primary transition-all duration-300"
+                  className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-6 sm:p-8 border border-border-color hover:border-accent-primary transition-all duration-300 shadow-glass"
                 >
                   <div className="text-accent-primary mb-4">{feature.icon}</div>
                   <h3 className="text-lg sm:text-xl font-bold text-text-primary mb-2 sm:mb-3">
@@ -365,7 +365,7 @@ export function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border-color bg-secondary-bg/50">
+      <footer className="border-t border-border-color bg-secondary-bg/40 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8">
             {/* Brand */}

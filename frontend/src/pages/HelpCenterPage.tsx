@@ -34,7 +34,7 @@ export function HelpCenterPage() {
               placeholder="Search for help..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-secondary-bg border border-border-color rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full pl-12 pr-4 py-3 bg-secondary-bg/60 backdrop-blur-md border border-border-color rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary shadow-glass"
             />
           </div>
         </div>
@@ -44,7 +44,7 @@ export function HelpCenterPage() {
           {categories.map((category, index) => (
             <div
               key={index}
-              className="bg-secondary-bg rounded-xl p-6 border border-border-color hover:border-accent-primary transition-all cursor-pointer"
+              className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-6 border border-border-color hover:border-accent-primary transition-all cursor-pointer shadow-glass"
             >
               <div className="text-accent-primary mb-4">{category.icon}</div>
               <h3 className="text-lg font-bold text-text-primary mb-2">{category.name}</h3>
@@ -54,7 +54,7 @@ export function HelpCenterPage() {
         </div>
 
         {/* Articles */}
-        <div className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+        <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
           <h2 className="text-2xl font-bold text-text-primary mb-6">Popular Articles</h2>
           <div className="space-y-4">
             {filteredArticles.map((article, index) => (
@@ -75,7 +75,7 @@ export function HelpCenterPage() {
         </div>
 
         {/* Contact Support */}
-        <div className="mt-12 text-center bg-secondary-bg rounded-xl p-8 border border-border-color">
+        <div className="mt-12 text-center bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
           <h2 className="text-2xl font-bold text-text-primary mb-4">Still need help?</h2>
           <p className="text-text-secondary mb-6">
             Our support team is here to assist you

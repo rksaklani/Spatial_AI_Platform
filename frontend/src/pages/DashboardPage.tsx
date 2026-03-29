@@ -142,7 +142,7 @@ export function DashboardPage() {
       <ToastContainer toasts={toasts} onClose={hideToast} />
 
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-secondary-bg to-primary-bg border-b border-border-color mb-8">
+      <div className="bg-gradient-to-r from-secondary-bg/80 to-primary-bg/80 backdrop-blur-lg border-b border-border-color mb-8 shadow-glass">
         <div className="px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -177,7 +177,7 @@ export function DashboardPage() {
       {/* Stats Cards */}
       <div className="px-8 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-secondary-bg border border-border-color rounded-xl p-6">
+          <div className="bg-secondary-bg/60 backdrop-blur-md border border-border-color rounded-xl p-6 shadow-glass">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-text-muted text-sm mb-1">Total Scenes</p>
@@ -191,7 +191,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-secondary-bg border border-border-color rounded-xl p-6">
+          <div className="bg-secondary-bg/60 backdrop-blur-md border border-border-color rounded-xl p-6 shadow-glass">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-text-muted text-sm mb-1">Processing</p>
@@ -207,7 +207,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-secondary-bg border border-border-color rounded-xl p-6">
+          <div className="bg-secondary-bg/60 backdrop-blur-md border border-border-color rounded-xl p-6 shadow-glass">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-text-muted text-sm mb-1">Completed</p>

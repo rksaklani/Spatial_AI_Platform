@@ -17,14 +17,14 @@ export function AboutPage() {
         </div>
 
         <div className="space-y-12">
-          <section className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+          <section className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
             <h2 className="text-2xl font-bold text-text-primary mb-4">Our Mission</h2>
             <p className="text-text-secondary leading-relaxed">
               Spatial AI is built to democratize access to massive 3D datasets. We believe that powerful 3D visualization shouldn't require expensive hardware or complex software installations. Our platform enables teams to view, analyze, and collaborate on billion-point 3D models directly in their web browser, on any device.
             </p>
           </section>
 
-          <section className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+          <section className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
             <h2 className="text-2xl font-bold text-text-primary mb-4">The Technology</h2>
             <p className="text-text-secondary leading-relaxed mb-4">
               At the core of Spatial AI is cutting-edge Gaussian splatting technology combined with intelligent streaming and level-of-detail management. This allows us to render photorealistic 3D scenes at 60 FPS on devices ranging from high-end workstations to smartphones.
@@ -49,7 +49,7 @@ export function AboutPage() {
             </ul>
           </section>
 
-          <section className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+          <section className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
             <h2 className="text-2xl font-bold text-text-primary mb-4">Use Cases</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>

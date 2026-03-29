@@ -22,10 +22,10 @@ export function PricingPage() {
           {plans.map((plan, index) => (
             <div
               key={index}
-              className={`bg-secondary-bg rounded-xl p-8 border ${
+              className={`bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border ${
                 plan.featured
-                  ? 'border-accent-primary shadow-xl scale-105'
-                  : 'border-border-color'
+                  ? 'border-accent-primary shadow-glow-lg scale-105'
+                  : 'border-border-color shadow-glass'
               }`}
             >
               {plan.featured && (
@@ -59,7 +59,7 @@ export function PricingPage() {
           ))}
         </div>
 
-        <div className="bg-secondary-bg rounded-xl p-8 border border-border-color">
+        <div className="bg-secondary-bg/60 backdrop-blur-md rounded-xl p-8 border border-border-color shadow-glass">
           <h2 className="text-2xl font-bold text-text-primary mb-6 text-center">
             Frequently Asked Questions
           </h2>
