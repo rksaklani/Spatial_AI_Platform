@@ -119,7 +119,7 @@ export function NavigationBar({
                       <UserMenuItem
                         icon={<UserCircleIcon className="w-5 h-5" />}
                         label="Profile"
-                        to="/settings/profile"
+                        to="/settings"
                         onClick={() => setIsUserMenuOpen(false)}
                       />
                       <UserMenuItem
