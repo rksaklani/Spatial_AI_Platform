@@ -183,8 +183,8 @@ export function DashboardPage() {
                 <p className="text-text-muted text-sm mb-1">Total Scenes</p>
                 <p className="text-3xl font-bold text-text-primary">{scenes.length}</p>
               </div>
-              <div className="w-12 h-12 bg-accent-coral/20 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-accent-coral" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-12 h-12 bg-accent-primary/20 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-accent-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>

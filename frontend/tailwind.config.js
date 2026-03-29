@@ -8,36 +8,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Surface colors - adapt to theme
+        // Surface colors - Dark theme with orange-blue glow
         'surface-base': 'rgb(var(--color-surface-base) / <alpha-value>)',
         'surface-elevated': 'rgb(var(--color-surface-elevated) / <alpha-value>)',
         'surface-overlay': 'rgb(var(--color-surface-overlay) / <alpha-value>)',
         
-        // Primary Colors
-        'primary-bg': 'rgb(var(--color-primary-bg) / <alpha-value>)',
-        'secondary-bg': 'rgb(var(--color-secondary-bg) / <alpha-value>)',
-        'accent-primary': '#09b706',
-        'accent-secondary': '#0ad908',
-        'accent-coral': '#09b706', // Legacy name, now green
+        // Primary Colors - Black + Orange + Blue
+        'primary-bg': '#000000',
+        'secondary-bg': 'rgba(20, 20, 20, 0.8)',
+        'accent-primary': '#FF6B35',      // Neon Orange
+        'accent-secondary': '#4A90E2',    // Electric Blue
+        'accent-coral': '#FF6B35',        // Legacy compatibility
         
         // Text Colors
-        'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
-        'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
-        'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
+        'text-primary': '#FFFFFF',
+        'text-secondary': '#B0B0B0',
+        'text-muted': '#707070',
         
         // UI Elements
-        'border-color': 'rgb(var(--color-border) / <alpha-value>)',
-        'border-subtle': 'rgb(var(--color-border-subtle) / <alpha-value>)',
-        'hover-bg': 'rgba(9, 183, 6, 0.1)',
-        'glass-bg': 'rgb(var(--color-glass-bg) / <alpha-value>)',
+        'border-color': 'rgba(255, 255, 255, 0.1)',
+        'border-subtle': 'rgba(255, 255, 255, 0.05)',
+        'hover-bg': 'rgba(255, 107, 53, 0.1)',
+        'glass-bg': 'rgba(20, 20, 20, 0.6)',
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         display: ['Space Grotesk', 'Inter', 'sans-serif'],
       },
       boxShadow: {
-        'glass': '0 8px 32px rgba(0, 0, 0, 0.4)',
-        'glow': '0 0 20px rgba(9, 183, 6, 0.3)',
+        'glass': '0 8px 32px rgba(0, 0, 0, 0.9)',
+        'glow': '0 0 30px rgba(255, 107, 53, 0.5)',
+        'glow-lg': '0 0 50px rgba(255, 107, 53, 0.6)',
+        'glow-blue': '0 0 30px rgba(74, 144, 226, 0.5)',
+        'inner-glow': 'inset 0 0 20px rgba(255, 107, 53, 0.1)',
+        'card': '0 8px 32px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
       },
       backdropBlur: {
         'xl': '24px',

@@ -137,8 +137,8 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg ${
                 isActive
-                  ? 'bg-accent-coral/20 text-accent-coral'
-                  : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
+                  ? 'bg-accent-primary/20 text-accent-primary shadow-inner-glow'
+                  : 'text-text-secondary hover:bg-accent-primary/5 hover:text-accent-primary'
               }`
             }
             role="menuitem"
@@ -159,7 +159,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
         <button
           ref={(el) => (navItemsRef.current[navItems.length] = el)}
           onKeyDown={(e) => handleKeyDown(e, navItems.length)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-white/5 hover:text-text-primary transition-all relative focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-accent-primary/5 hover:text-accent-primary transition-all relative focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg"
           aria-label={`Notifications${notificationCount > 0 ? ` (${notificationCount} unread)` : ''}`}
           title={isCollapsed ? 'Notifications' : undefined}
         >
@@ -185,8 +185,8 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg ${
               isActive
-                ? 'bg-accent-coral/20 text-accent-coral'
-                : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
+                ? 'bg-accent-primary/20 text-accent-primary shadow-inner-glow'
+                : 'text-text-secondary hover:bg-accent-primary/5 hover:text-accent-primary'
             }`
           }
           aria-label="Settings"

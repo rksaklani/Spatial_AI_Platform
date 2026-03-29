@@ -40,10 +40,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     // Variant styles
     const variantStyles = {
-      primary: 'px-6 py-3 bg-accent-primary text-white rounded-lg hover:bg-accent-secondary shadow-lg hover:shadow-glow transform hover:-translate-y-0.5 active:translate-y-0',
-      secondary: 'px-6 py-3 border-2 border-accent-primary text-accent-primary rounded-lg hover:bg-accent-primary hover:text-white',
-      ghost: 'px-4 py-2 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg',
-      icon: 'p-3 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg',
+      primary: 'px-6 py-3 bg-gradient-to-r from-accent-primary to-accent-secondary text-white rounded-lg hover:shadow-glow transform hover:-translate-y-0.5 active:translate-y-0 shadow-lg',
+      secondary: 'px-6 py-3 border-2 border-accent-primary text-accent-primary rounded-lg hover:bg-accent-primary/10 hover:shadow-glow',
+      ghost: 'px-4 py-2 text-text-secondary hover:text-accent-primary hover:bg-accent-primary/5 rounded-lg',
+      icon: 'p-3 text-text-secondary hover:text-accent-primary hover:bg-accent-primary/5 rounded-lg',
     };
 
     // Size styles (only for non-icon variants)

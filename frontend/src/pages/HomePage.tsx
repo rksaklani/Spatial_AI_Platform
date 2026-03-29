@@ -17,7 +17,7 @@ export function HomePage() {
           <div className="flex items-center justify-between">
             {/* Logo and Brand */}
             <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-xl transition-all duration-200">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-all duration-200">
                 <span className="text-white font-bold text-lg sm:text-xl">S</span>
               </div>
               <span className="text-text-primary font-display font-bold text-base sm:text-xl group-hover:text-accent-primary transition-colors duration-200">
@@ -29,25 +29,25 @@ export function HomePage() {
             <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
               <Link
                 to="/about"
-                className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
+                className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200"
               >
                 ABOUT
               </Link>
               <Link
                 to="/pricing"
-                className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
+                className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200"
               >
                 PRICING
               </Link>
               <Link
                 to="/help"
-                className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
+                className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200"
               >
                 HELP CENTER
               </Link>
               <Link
                 to="/contact"
-                className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
+                className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200"
               >
                 CONTACT
               </Link>
@@ -95,28 +95,28 @@ export function HomePage() {
                 <Link
                   to="/about"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
+                  className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   ABOUT
                 </Link>
                 <Link
                   to="/pricing"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
+                  className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   PRICING
                 </Link>
                 <Link
                   to="/help"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
+                  className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   HELP CENTER
                 </Link>
                 <Link
                   to="/contact"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
+                  className="text-text-secondary hover:text-accent-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   CONTACT
                 </Link>
@@ -371,7 +371,7 @@ export function HomePage() {
             {/* Brand */}
             <div className="col-span-2 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow">
                   <span className="text-white font-bold text-lg sm:text-xl">S</span>
                 </div>
                 <span className="text-text-primary font-display font-bold text-lg sm:text-xl">

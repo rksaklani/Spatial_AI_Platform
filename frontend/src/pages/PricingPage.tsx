@@ -2,10 +2,11 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/common/Button';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { PublicNav } from '../components/layout/PublicNav';
+import { PublicFooter } from '../components/layout/PublicFooter';
 
 export function PricingPage() {
   return (
-    <div className="min-h-screen geometric-bg">
+    <div className="min-h-screen geometric-bg flex flex-col">
       <PublicNav />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 lg:py-24 pt-24">
         <div className="text-center mb-12">
@@ -72,6 +73,7 @@ export function PricingPage() {
           </div>
         </div>
       </div>
+      <PublicFooter />
     </div>
   );
 }

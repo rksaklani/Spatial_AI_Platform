@@ -117,25 +117,37 @@ code {
   background: var(--code-bg);
 }
 
-/* Geometric Background Pattern - Nira-inspired Design */
+/* Geometric Background Pattern - Orange-Blue Glow Design */
 .geometric-bg {
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  background: #000000;
   position: relative;
   overflow: hidden;
 }
 
+/* Orange glow on left, Blue glow on right */
 .geometric-bg::before {
   content: '';
   position: absolute;
   width: 100%;
   height: 100%;
-  background-image: 
-    linear-gradient(30deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
-    linear-gradient(150deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
-    linear-gradient(30deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05)),
-    linear-gradient(150deg, rgba(255, 107, 74, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(255, 107, 74, 0.05) 87.5%, rgba(255, 107, 74, 0.05));
-  background-size: 80px 140px;
-  background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+  background: 
+    radial-gradient(ellipse 800px 600px at 0% 50%, rgba(255, 107, 53, 0.15), transparent 50%),
+    radial-gradient(ellipse 800px 600px at 100% 50%, rgba(74, 144, 226, 0.15), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Diagonal light streaks */
+.geometric-bg::after {
+  content: '';
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  background: 
+    linear-gradient(135deg, transparent 40%, rgba(255, 107, 53, 0.08) 45%, rgba(255, 107, 53, 0.15) 50%, rgba(255, 107, 53, 0.08) 55%, transparent 60%),
+    linear-gradient(135deg, transparent 60%, rgba(74, 144, 226, 0.08) 65%, rgba(74, 144, 226, 0.15) 70%, rgba(74, 144, 226, 0.08) 75%, transparent 80%);
   pointer-events: none;
   z-index: 0;
 }

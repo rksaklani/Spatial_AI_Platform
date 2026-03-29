@@ -49,7 +49,7 @@ export function NavigationBar({
           <div className="flex items-center space-x-4">
             <Link to="/" className="flex items-center space-x-3 group">
               {/* Logo */}
-              <div className="w-10 h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-xl transition-all duration-200">
+              <div className="w-10 h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-all duration-200">
                 <span className="text-white font-bold text-xl">S</span>
               </div>
               {/* Organization Name */}

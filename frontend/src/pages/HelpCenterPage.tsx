@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { PublicNav } from '../components/layout/PublicNav';
+import { PublicFooter } from '../components/layout/PublicFooter';
+import { Button } from '../components/common/Button';
+import { Link } from 'react-router-dom';
 
 export function HelpCenterPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,7 +15,7 @@ export function HelpCenterPage() {
   );
 
   return (
-    <div className="min-h-screen geometric-bg">
+    <div className="min-h-screen geometric-bg flex flex-col">
       <PublicNav />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16 lg:py-24 pt-24">
         <div className="text-center mb-12">
@@ -77,14 +80,14 @@ export function HelpCenterPage() {
           <p className="text-text-secondary mb-6">
             Our support team is here to assist you
           </p>
-          <a
-            href="/contact"
-            className="inline-block px-6 py-3 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors"
-          >
-            Contact Support
-          </a>
+          <Link to="/contact">
+            <Button variant="primary" size="lg">
+              Contact Support
+            </Button>
+          </Link>
         </div>
       </div>
+      <PublicFooter />
     </div>
   );
 }
