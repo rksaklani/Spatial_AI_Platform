@@ -7,6 +7,7 @@
 
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { setTheme, setLanguage, updateViewerSettings } from '../../store/slices/preferencesSlice';
+import { Dropdown } from '../common';
 
 export function PreferencesTab() {
   const dispatch = useAppDispatch();
@@ -18,35 +19,27 @@ export function PreferencesTab() {
       <div>
         <h3 className="text-lg font-medium text-text-primary mb-4">Appearance</h3>
         <div className="space-y-4 max-w-md">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Theme
-            </label>
-            <select
-              value={preferences.theme}
-              onChange={(e) => dispatch(setTheme(e.target.value as 'light' | 'dark'))}
-              className="w-full px-3 py-2 bg-surface-base border border-border-subtle rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </div>
+          <Dropdown
+            label="Theme"
+            value={preferences.theme}
+            onChange={(value) => dispatch(setTheme(value as 'light' | 'dark'))}
+            options={[
+              { value: 'dark', label: 'Dark' },
+              { value: 'light', label: 'Light' },
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Language
-            </label>
-            <select
-              value={preferences.language}
-              onChange={(e) => dispatch(setLanguage(e.target.value))}
-              className="w-full px-3 py-2 bg-surface-base border border-border-subtle rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </div>
+          <Dropdown
+            label="Language"
+            value={preferences.language}
+            onChange={(value) => dispatch(setLanguage(value))}
+            options={[
+              { value: 'en', label: 'English' },
+              { value: 'es', label: 'Español' },
+              { value: 'fr', label: 'Français' },
+              { value: 'de', label: 'Deutsch' },
+            ]}
+          />
         </div>
       </div>
 
@@ -54,38 +47,30 @@ export function PreferencesTab() {
       <div className="pt-8 border-t border-border-subtle">
         <h3 className="text-lg font-medium text-text-primary mb-4">3D Viewer</h3>
         <div className="space-y-4 max-w-md">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Default Rendering Mode
-            </label>
-            <select
-              value={preferences.viewerSettings.defaultRenderingMode}
-              onChange={(e) => dispatch(updateViewerSettings({ 
-                defaultRenderingMode: e.target.value as 'client' | 'server' 
-              }))}
-              className="w-full px-3 py-2 bg-surface-base border border-border-subtle rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="client">Client-side</option>
-              <option value="server">Server-side</option>
-            </select>
-          </div>
+          <Dropdown
+            label="Default Rendering Mode"
+            value={preferences.viewerSettings.defaultRenderingMode}
+            onChange={(value) => dispatch(updateViewerSettings({ 
+              defaultRenderingMode: value as 'client' | 'server' 
+            }))}
+            options={[
+              { value: 'client', label: 'Client-side' },
+              { value: 'server', label: 'Server-side' },
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Quality
-            </label>
-            <select
-              value={preferences.viewerSettings.quality}
-              onChange={(e) => dispatch(updateViewerSettings({ 
-                quality: e.target.value as 'low' | 'medium' | 'high' 
-              }))}
-              className="w-full px-3 py-2 bg-surface-base border border-border-subtle rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
+          <Dropdown
+            label="Quality"
+            value={preferences.viewerSettings.quality}
+            onChange={(value) => dispatch(updateViewerSettings({ 
+              quality: value as 'low' | 'medium' | 'high' 
+            }))}
+            options={[
+              { value: 'low', label: 'Low' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'high', label: 'High' },
+            ]}
+          />
 
           <label className="flex items-center gap-3 cursor-pointer">
             <input

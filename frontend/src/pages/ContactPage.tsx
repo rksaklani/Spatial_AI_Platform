@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '../components/common/Button';
+import { Button, Dropdown } from '../components/common';
 import { EnvelopeIcon, PhoneIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { PublicNav } from '../components/layout/PublicNav';
 import { PublicFooter } from '../components/layout/PublicFooter';
@@ -134,27 +134,21 @@ export function ContactPage() {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="subject" className="block text-xs sm:text-sm font-medium text-text-primary mb-2">
-                    Subject
-                  </label>
-                  <select
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-primary-bg border border-border-color rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary text-sm sm:text-base"
-                  >
-                    <option value="">Select a subject</option>
-                    <option value="general">General Inquiry</option>
-                    <option value="support">Technical Support</option>
-                    <option value="sales">Sales Question</option>
-                    <option value="billing">Billing Issue</option>
-                    <option value="feature">Feature Request</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
+                <Dropdown
+                  label="Subject"
+                  value={formData.subject}
+                  onChange={(value) => setFormData({ ...formData, subject: value })}
+                  options={[
+                    { value: 'general', label: 'General Inquiry' },
+                    { value: 'support', label: 'Technical Support' },
+                    { value: 'sales', label: 'Sales Question' },
+                    { value: 'billing', label: 'Billing Issue' },
+                    { value: 'feature', label: 'Feature Request' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                  placeholder="Select a subject"
+                  required
+                />
 
                 <div>
                   <label htmlFor="message" className="block text-xs sm:text-sm font-medium text-text-primary mb-2">

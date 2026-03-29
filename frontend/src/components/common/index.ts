@@ -13,6 +13,8 @@ export type { StatusBadgeProps, SceneStatus } from './StatusBadge';
 export { LoadingSpinner } from './LoadingSpinner';
 export type { LoadingSpinnerProps } from './LoadingSpinner';
 
+export { Dropdown } from './Dropdown';
+
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 

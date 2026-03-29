@@ -51,50 +51,56 @@ export function OrganizationSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary-bg border border-border-color hover:border-accent-primary transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary-bg/70 backdrop-blur-sm border border-border-color hover:border-accent-primary hover:shadow-glow transition-all duration-200"
         disabled={isLoading}
       >
-        <BuildingOfficeIcon className="w-5 h-5 text-text-secondary" />
+        <BuildingOfficeIcon className="w-5 h-5 text-accent-primary" />
         <span className="text-sm font-medium text-text-primary">
           {currentOrg?.name || 'Select Organization'}
         </span>
         <ChevronDownIcon
-          className={`w-4 h-4 text-text-secondary transition-transform ${
+          className={`w-4 h-4 text-accent-primary transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-secondary-bg border border-border-color rounded-lg shadow-xl z-50 overflow-hidden">
-          <div className="p-2 border-b border-border-color">
-            <p className="text-xs text-text-muted px-2 py-1">Switch Organization</p>
-          </div>
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="max-h-64 overflow-y-auto">
-            {organizations.map(org => (
-              <button
-                key={org.id}
-                onClick={() => handleSwitch(org.id)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-primary-bg transition-colors text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-accent-primary/20 flex items-center justify-center">
-                    <BuildingOfficeIcon className="w-5 h-5 text-accent-primary" />
+          {/* Dropdown Menu */}
+          <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-secondary-bg/95 backdrop-blur-xl rounded-2xl border border-accent-primary/30 shadow-glow-lg z-50 overflow-hidden animate-slide-down">
+            <div className="p-3 bg-gradient-to-br from-accent-primary/10 to-accent-secondary/10 border-b border-accent-primary/20">
+              <p className="text-xs text-text-muted font-medium">Switch Organization</p>
+            </div>
+            
+            <div className="max-h-64 overflow-y-auto p-2">
+              {organizations.map(org => (
+                <button
+                  key={org.id}
+                  onClick={() => handleSwitch(org.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-accent-primary/10 transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 flex items-center justify-center group-hover:shadow-glow transition-all duration-200">
+                      <BuildingOfficeIcon className="w-5 h-5 text-accent-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-text-primary truncate">{org.name}</p>
+                      <p className="text-xs text-text-muted">{org.memberCount} members</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{org.name}</p>
-                    <p className="text-xs text-text-muted">{org.memberCount} members</p>
-                  </div>
-                </div>
-                
-                {org.id === currentOrgId && (
-                  <CheckIcon className="w-5 h-5 text-accent-primary" />
-                )}
-              </button>
-            ))}
+                  
+                  {org.id === currentOrgId && (
+                    <CheckIcon className="w-5 h-5 text-accent-primary flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

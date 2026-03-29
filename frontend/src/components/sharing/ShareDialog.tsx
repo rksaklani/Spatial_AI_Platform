@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '../common/Button';
+import { Button, Dropdown } from '../common';
 import {
   useCreateShareTokenMutation,
   useGetShareTokensQuery,
@@ -96,40 +96,32 @@ export function ShareDialog({ open, sceneId, sceneName, onClose }: ShareDialogPr
         </div>
 
         {/* Create new share link */}
-        <div className="bg-secondary-bg rounded-lg p-4 mb-6">
+        <div className="bg-secondary-bg/70 backdrop-blur-sm rounded-lg p-4 mb-6 border border-border-color">
           <h3 className="text-sm font-medium text-text-primary mb-4">Create Share Link</h3>
           
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-xs text-text-secondary mb-2">
-                Expires In
-              </label>
-              <select
-                value={expiresIn}
-                onChange={(e) => setExpiresIn(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-primary-bg border border-border-color rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              >
-                <option value={1}>1 day</option>
-                <option value={7}>7 days</option>
-                <option value={30}>30 days</option>
-                <option value={90}>90 days</option>
-                <option value={365}>1 year</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <Dropdown
+              label="Expires In"
+              value={expiresIn}
+              onChange={(value) => setExpiresIn(Number(value))}
+              options={[
+                { value: 1, label: '1 day' },
+                { value: 7, label: '7 days' },
+                { value: 30, label: '30 days' },
+                { value: 90, label: '90 days' },
+                { value: 365, label: '1 year' },
+              ]}
+            />
 
-            <div>
-              <label className="block text-xs text-text-secondary mb-2">
-                Permissions
-              </label>
-              <select
-                value={permissions}
-                onChange={(e) => setPermissions(e.target.value as 'view' | 'edit')}
-                className="w-full px-3 py-2 bg-primary-bg border border-border-color rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              >
-                <option value="view">View Only</option>
-                <option value="edit">View & Edit</option>
-              </select>
-            </div>
+            <Dropdown
+              label="Permissions"
+              value={permissions}
+              onChange={(value) => setPermissions(value as 'view' | 'edit')}
+              options={[
+                { value: 'view', label: 'View Only' },
+                { value: 'edit', label: 'View & Edit' },
+              ]}
+            />
           </div>
 
           <Button
