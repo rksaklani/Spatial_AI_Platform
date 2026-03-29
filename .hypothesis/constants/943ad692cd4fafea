@@ -1,4 +1,0 @@
-# file: E:\Rk_Saklani\3d_rendering\backend\services\tenant_context.py
-# hypothesis_version: 6.151.9
-
-['_id', 'free_trial', 'is_active', 'organization_id', 'role', 'subscription_tier', 'trial_expires_at', 'user-agent', 'user_id']

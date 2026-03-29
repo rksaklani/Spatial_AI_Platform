@@ -1,4 +1,0 @@
-# file: E:\Rk_Saklani\3d_rendering\backend\models\geospatial.py
-# hypothesis_version: 6.151.9
-
-[-180, 180, 'CUSTOM', 'Coordinate system', 'EPSG code', 'Feature', 'Feature properties', 'FeatureCollection', 'GPS coordinates', 'GeoJSON geometry', 'Human-readable name', 'Point identifier', 'STATE_PLANE', 'Scene identifier', 'UTM', 'WGS84', 'latitude', 'longitude']

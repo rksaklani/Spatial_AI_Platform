@@ -1,22 +1,80 @@
 # Backend Setup Status & Quick Start Guide
 
-## Current Status
+## Current Status - ✅ FULLY WORKING
 
 ### ✅ What's Working
-- Backend API (FastAPI) - Configured and ready
-- Frontend UI (React + Vite) - Fully functional with orange-blue theme
-- Database (MongoDB Atlas) - Connected
+- Backend API (FastAPI) - **RUNNING on http://localhost:8000**
+- Frontend UI (React + Vite) - **RUNNING on http://localhost:5173**
+- Database (MongoDB Atlas) - Connected and initialized
 - Authentication & Authorization - Working
 - All dashboard pages with API integration
 - Video upload functionality
 - File storage (MinIO) - Configured
+- Python Environment - Linux venv at `/tmp/spatial_venv`
+- All Python dependencies installed (including PyTorch, OpenCV, Open3D)
+- Node.js 20.20.0 and npm 10.8.2 installed
+- Frontend dependencies installed
 
-### ⚠️ What Needs Setup for Full 3D Reconstruction
+### ⚠️ What Needs Setup for Full 3D Reconstruction (Optional)
 - CUDA Toolkit (for GPU acceleration)
 - CMake (build tool)
 - COLMAP (camera pose estimation)
-- PyTorch with CUDA (currently CPU version)
+- PyTorch with CUDA (currently CPU version - works but slower)
 - Gaussian Splatting (3D reconstruction)
+
+---
+
+## ✅ Quick Start (CURRENT SETUP - WORKING NOW)
+
+### Backend is Running
+```bash
+# Backend is already running at http://localhost:8000
+# Process: /tmp/spatial_venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Frontend is Running
+```bash
+# Frontend is already running at http://localhost:5173
+# Process: npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+### Access Application
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+- **Health Check:** http://localhost:8000/health
+
+### To Restart Services
+
+**Backend:**
+```bash
+./start-backend.sh
+# OR manually:
+cd backend
+/tmp/spatial_venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Frontend:**
+```bash
+./start-frontend.sh
+# OR manually:
+cd frontend
+npm run dev -- --host 0.0.0.0
+```
+
+---
+
+## Important Notes
+
+### Python Virtual Environment
+- **Location:** `/tmp/spatial_venv` (Linux-compatible venv)
+- **Why /tmp?** The project is on an exFAT drive which doesn't support symlinks required by Python venv
+- **All dependencies installed:** FastAPI, PyTorch, OpenCV, Open3D, NumPy, Pillow, etc.
+
+### Original Windows venv
+- The `backend/venv` folder is from Windows and won't work on Linux
+- Don't delete it - it might be needed if you switch back to Windows
+- Use `/tmp/spatial_venv` on Linux instead
 
 ---
 
@@ -24,17 +82,14 @@
 
 You can use the platform NOW for basic features:
 
-### 1. Start Backend
-```powershell
-cd E:\Rk_Saklani\3d_rendering\backend
-.\venv\Scripts\activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+### 1. Start Backend (if not running)
+```bash
+./start-backend.sh
 ```
 
-### 2. Start Frontend
-```powershell
-cd E:\Rk_Saklani\3d_rendering\frontend
-npm run dev
+### 2. Start Frontend (if not running)
+```bash
+./start-frontend.sh
 ```
 
 ### 3. Access Application

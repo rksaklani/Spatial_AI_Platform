@@ -30,6 +30,13 @@ Thumbs.db
 .kiro/
 sessions/
 
+# Hypothesis testing cache
+.hypothesis/
+
+# Documentation and memory
+docs/
+memory/
+
 # Docker
 *.pid
 *.seed
