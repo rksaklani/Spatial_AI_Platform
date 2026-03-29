@@ -6,7 +6,7 @@ export function PublicNav() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/80 backdrop-blur-xl border-b border-border-color shadow-glass">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-secondary-bg/90 backdrop-blur-md border-b border-border-color shadow-glass">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
           {/* Logo and Brand */}

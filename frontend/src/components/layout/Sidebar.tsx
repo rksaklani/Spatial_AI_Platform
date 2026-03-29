@@ -88,7 +88,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-secondary-bg/80 backdrop-blur-xl border-r border-white/10 shadow-glass transition-all duration-300 z-30 flex flex-col ${
+      className={`fixed left-0 top-0 h-screen bg-secondary-bg/90 backdrop-blur-md border-r border-white/10 shadow-glass transition-all duration-300 z-30 flex flex-col ${
         isCollapsed ? 'w-16' : 'w-64'
       } hidden md:flex`}
       role="navigation"
