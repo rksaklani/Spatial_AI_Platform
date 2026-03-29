@@ -7,6 +7,10 @@ import { LoadingSpinner } from './components/common';
 
 // Lazy load page components for code splitting
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
+const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
+const HelpCenterPage = lazy(() => import('./pages/HelpCenterPage').then(m => ({ default: m.HelpCenterPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -45,6 +49,40 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <HomePage />
+      </SuspenseWrapper>
+    ),
+  },
+
+  // Public pages
+  {
+    path: '/about',
+    element: (
+      <SuspenseWrapper>
+        <AboutPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/pricing',
+    element: (
+      <SuspenseWrapper>
+        <PricingPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/help',
+    element: (
+      <SuspenseWrapper>
+        <HelpCenterPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/contact',
+    element: (
+      <SuspenseWrapper>
+        <ContactPage />
       </SuspenseWrapper>
     ),
   },

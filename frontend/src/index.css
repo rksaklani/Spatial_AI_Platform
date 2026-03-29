@@ -2,7 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Force dark mode styles as default */
+/* Theme CSS Variables */
+:root {
+  /* Light mode colors */
+  --color-surface-base: 255 255 255;
+  --color-surface-elevated: 249 250 251;
+  --color-surface-overlay: 243 244 246;
+  --color-primary-bg: 249 250 251;
+  --color-secondary-bg: 255 255 255;
+  --color-text-primary: 17 24 39;
+  --color-text-secondary: 107 114 128;
+  --color-text-muted: 156 163 175;
+  --color-border: 229 231 235;
+  --color-border-subtle: 243 244 246;
+  --color-glass-bg: 255 255 255;
+}
+
+.dark {
+  /* Dark mode colors */
+  --color-surface-base: 10 10 10;
+  --color-surface-elevated: 26 26 26;
+  --color-surface-overlay: 38 38 38;
+  --color-primary-bg: 10 10 10;
+  --color-secondary-bg: 26 26 26;
+  --color-text-primary: 255 255 255;
+  --color-text-secondary: 160 160 160;
+  --color-text-muted: 102 102 102;
+  --color-border: 255 255 255;
+  --color-border-subtle: 64 64 64;
+  --color-glass-bg: 26 26 26;
+}
+
+/* Legacy variables for compatibility */
 :root {
   --text: #9ca3af;
   --text-h: #f3f4f6;
@@ -22,9 +53,7 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: dark;
-  color: var(--text);
-  background: var(--bg);
+  color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -35,10 +64,13 @@
   }
 }
 
+.dark {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  background-color: #0a0a0a;
-  color: #ffffff;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1,

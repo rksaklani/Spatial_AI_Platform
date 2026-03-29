@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BellIcon,
-  SunIcon,
-  MoonIcon,
   UserCircleIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
@@ -15,9 +13,7 @@ interface NavigationBarProps {
   organizationName?: string;
   userName?: string;
   notificationCount?: number;
-  onThemeToggle?: () => void;
   onLogout?: () => void;
-  isDarkMode?: boolean;
 }
 
 /**
@@ -27,7 +23,6 @@ interface NavigationBarProps {
  * - Logo and organization name display
  * - Main navigation links
  * - Notification bell with badge
- * - Theme toggle button
  * - User menu dropdown
  * 
  * Requirements: 30.1, 30.4, 43.1
@@ -37,15 +32,9 @@ export function NavigationBar({
   organizationName = 'Spatial AI Platform',
   userName = 'User',
   notificationCount = 0,
-  onThemeToggle,
   onLogout,
-  isDarkMode = true,
 }: NavigationBarProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-
-  const handleThemeToggle = () => {
-    onThemeToggle?.();
-  };
 
   const handleLogout = () => {
     setIsUserMenuOpen(false);
@@ -97,20 +86,6 @@ export function NavigationBar({
                 </span>
               )}
             </div>
-
-            {/* Theme Toggle */}
-            <Button
-              variant="icon"
-              icon={
-                isDarkMode ? (
-                  <SunIcon className="w-6 h-6" />
-                ) : (
-                  <MoonIcon className="w-6 h-6" />
-                )
-              }
-              onClick={handleThemeToggle}
-              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            />
 
             {/* User Menu */}
             <div className="relative">
@@ -173,25 +148,6 @@ export function NavigationBar({
         </div>
       </div>
     </nav>
-  );
-}
-
-/**
- * NavLink component for main navigation
- */
-interface NavLinkProps {
-  to: string;
-  children: React.ReactNode;
-}
-
-function NavLink({ to, children }: NavLinkProps) {
-  return (
-    <Link
-      to={to}
-      className="text-text-secondary hover:text-text-primary font-medium relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-accent-primary after:transition-all hover:after:w-full transition-colors duration-200"
-    >
-      {children}
-    </Link>
   );
 }
 

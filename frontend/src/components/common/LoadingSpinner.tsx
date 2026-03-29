@@ -18,7 +18,8 @@ export function LoadingSpinner({ size = 'md', fullScreen = false }: LoadingSpinn
 
   const spinner = (
     <div
-      className={`${sizeClasses[size]} border-accent-primary border-t-transparent rounded-full animate-spin`}
+      className={`${sizeClasses[size]} rounded-full animate-spin`}
+      style={{ borderColor: '#09b706', borderTopColor: 'transparent' }}
       role="status"
       aria-label="Loading"
     />

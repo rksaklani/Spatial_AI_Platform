@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   HomeIcon,
   CubeIcon,
@@ -24,18 +24,22 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 export function AppLayout() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
+  const theme = useAppSelector((state) => state.preferences.theme);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
   
   const isMobile = useIsMobile();
 
+  // Apply theme to document
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   const handleLogout = () => {
     dispatch(logout());
-  };
-
-  const handleThemeToggle = () => {
-    setIsDarkMode(!isDarkMode);
-    // TODO: Persist theme preference to Redux and localStorage
   };
 
   // On mobile, sidebar is hidden by default
@@ -48,9 +52,7 @@ export function AppLayout() {
         organizationName="Spatial AI Platform"
         userName={user?.name || 'User'}
         notificationCount={0}
-        onThemeToggle={handleThemeToggle}
         onLogout={handleLogout}
-        isDarkMode={isDarkMode}
       />
 
       {/* Sidebar - Fixed on left (hidden on mobile) */}

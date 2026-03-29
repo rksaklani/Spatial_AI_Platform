@@ -27,30 +27,30 @@ export function HomePage() {
 
             {/* Desktop Navigation Links - Hidden on mobile */}
             <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-              <a
-                href="#features"
+              <Link
+                to="/about"
                 className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
               >
                 ABOUT
-              </a>
-              <a
-                href="#pricing"
+              </Link>
+              <Link
+                to="/pricing"
                 className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
               >
                 PRICING
-              </a>
-              <a
-                href="#docs"
+              </Link>
+              <Link
+                to="/help"
                 className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
               >
                 HELP CENTER
-              </a>
-              <a
-                href="#contact"
+              </Link>
+              <Link
+                to="/contact"
                 className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200"
               >
                 CONTACT
-              </a>
+              </Link>
             </div>
 
             {/* Desktop Auth Buttons - Hidden on mobile */}
@@ -92,34 +92,34 @@ export function HomePage() {
             <div className="lg:hidden mt-4 pb-4 border-t border-border-color pt-4 animate-slide-down">
               <div className="flex flex-col space-y-4">
                 {/* Navigation Links */}
-                <a
-                  href="#features"
+                <Link
+                  to="/about"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   ABOUT
-                </a>
-                <a
-                  href="#pricing"
+                </Link>
+                <Link
+                  to="/pricing"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   PRICING
-                </a>
-                <a
-                  href="#docs"
+                </Link>
+                <Link
+                  to="/help"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   HELP CENTER
-                </a>
-                <a
-                  href="#contact"
+                </Link>
+                <Link
+                  to="/contact"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-text-secondary hover:text-text-primary font-medium text-sm transition-colors duration-200 py-2"
                 >
                   CONTACT
-                </a>
+                </Link>
 
                 {/* Divider */}
                 <div className="border-t border-border-color my-2"></div>

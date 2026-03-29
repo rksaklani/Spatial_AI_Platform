@@ -10,8 +10,6 @@ import {
   DocumentTextIcon,
   UsersIcon,
   BellIcon,
-  SunIcon,
-  MoonIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
@@ -37,7 +35,6 @@ interface SidebarProps {
  */
 export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const dispatch = useAppDispatch();
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [notificationCount] = useState(3);
   const navItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
 
@@ -49,11 +46,6 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
     { to: '/reports', icon: DocumentTextIcon, label: 'Reports' },
     { to: '/collaboration', icon: UsersIcon, label: 'Collaboration' },
   ];
-
-  const handleThemeToggle = () => {
-    setIsDarkMode(!isDarkMode);
-    // TODO: Persist theme preference
-  };
 
   const handleLogout = () => {
     dispatch(logout());
@@ -185,31 +177,10 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
           )}
         </button>
 
-        {/* Theme Toggle */}
-        <button
-          ref={(el) => (navItemsRef.current[navItems.length + 1] = el)}
-          onKeyDown={(e) => handleKeyDown(e, navItems.length + 1)}
-          onClick={handleThemeToggle}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-white/5 hover:text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg"
-          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={isCollapsed ? (isDarkMode ? 'Light Mode' : 'Dark Mode') : undefined}
-        >
-          {isDarkMode ? (
-            <SunIcon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-          ) : (
-            <MoonIcon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-          )}
-          {!isCollapsed && (
-            <span className="text-sm font-medium">
-              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-            </span>
-          )}
-        </button>
-
         {/* Settings */}
         <NavLink
-          ref={(el) => (navItemsRef.current[navItems.length + 2] = el)}
-          onKeyDown={(e) => handleKeyDown(e, navItems.length + 2)}
+          ref={(el) => (navItemsRef.current[navItems.length + 1] = el)}
+          onKeyDown={(e) => handleKeyDown(e, navItems.length + 1)}
           to="/settings"
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-secondary-bg ${
@@ -246,8 +217,8 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
         {/* Logout */}
         <button
-          ref={(el) => (navItemsRef.current[navItems.length + 3] = el)}
-          onKeyDown={(e) => handleKeyDown(e, navItems.length + 3)}
+          ref={(el) => (navItemsRef.current[navItems.length + 2] = el)}
+          onKeyDown={(e) => handleKeyDown(e, navItems.length + 2)}
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-red-500/10 hover:text-red-400 transition-all focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-secondary-bg"
           aria-label="Logout"

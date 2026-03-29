@@ -8,21 +8,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Surface colors - adapt to theme
+        'surface-base': 'rgb(var(--color-surface-base) / <alpha-value>)',
+        'surface-elevated': 'rgb(var(--color-surface-elevated) / <alpha-value>)',
+        'surface-overlay': 'rgb(var(--color-surface-overlay) / <alpha-value>)',
+        
         // Primary Colors
-        'primary-bg': '#0a0a0a',
-        'secondary-bg': '#1a1a1a',
-        'accent-primary': '#ff6b4a',
-        'accent-secondary': '#ff8c6b',
+        'primary-bg': 'rgb(var(--color-primary-bg) / <alpha-value>)',
+        'secondary-bg': 'rgb(var(--color-secondary-bg) / <alpha-value>)',
+        'accent-primary': '#09b706',
+        'accent-secondary': '#0ad908',
+        'accent-coral': '#09b706', // Legacy name, now green
         
         // Text Colors
-        'text-primary': '#ffffff',
-        'text-secondary': '#a0a0a0',
-        'text-muted': '#666666',
+        'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+        'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+        'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
         
         // UI Elements
-        'border-color': 'rgba(255, 255, 255, 0.1)',
-        'hover-bg': 'rgba(255, 107, 74, 0.1)',
-        'glass-bg': 'rgba(26, 26, 26, 0.8)',
+        'border-color': 'rgb(var(--color-border) / <alpha-value>)',
+        'border-subtle': 'rgb(var(--color-border-subtle) / <alpha-value>)',
+        'hover-bg': 'rgba(9, 183, 6, 0.1)',
+        'glass-bg': 'rgb(var(--color-glass-bg) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
@@ -30,7 +37,7 @@ export default {
       },
       boxShadow: {
         'glass': '0 8px 32px rgba(0, 0, 0, 0.4)',
-        'glow': '0 0 20px rgba(255, 107, 74, 0.3)',
+        'glow': '0 0 20px rgba(9, 183, 6, 0.3)',
       },
       backdropBlur: {
         'xl': '24px',
