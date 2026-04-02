@@ -16,7 +16,25 @@ export const sceneApi = baseApi.injectEndpoints({
     // Get all scenes for organization
     getScenes: builder.query<SceneMetadata[], void>({
       query: () => '/scenes',
-      transformResponse: (response: { items: SceneMetadata[] }) => response.items,
+      transformResponse: (response: { items: any[] }) => {
+        // Transform backend response (_id) to frontend format (sceneId)
+        return response.items.map(scene => ({
+          ...scene,
+          sceneId: scene._id || scene.sceneId,
+          organizationId: scene.organization_id || scene.organizationId,
+          userId: scene.owner_id || scene.userId,
+          sourceType: scene.source_type || scene.sourceType,
+          sourceFormat: scene.source_format || scene.sourceFormat,
+          fileUrl: scene.file_url || scene.fileUrl,
+          captureDate: scene.capture_date || scene.captureDate,
+          processingTime: scene.processing_time || scene.processingTime,
+          createdAt: scene.created_at || scene.createdAt,
+          updatedAt: scene.updated_at || scene.updatedAt,
+          tileCount: scene.tile_count || scene.tileCount || 0,
+          gaussianCount: scene.gaussian_count || scene.gaussianCount || 0,
+          bounds: scene.bounds || { min: [0, 0, 0], max: [0, 0, 0] },
+        })),
+      },
       providesTags: (result) =>
         result
           ? [
