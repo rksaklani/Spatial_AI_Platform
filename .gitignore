@@ -1,53 +1,120 @@
+# ========================
 # Python
+# ========================
 venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Node
-node_modules/
+venv_test/
+backend/venv/
+backend/venv_test/
+backend/venv*/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+*.egg-info/
 dist/
 build/
+.eggs/
 
-# Env files (VERY IMPORTANT)
+# ========================
+# Node / Frontend
+# ========================
+node_modules/
+frontend/dist/
+frontend/build/
+.next/
+out/
+.cache/
+*.tsbuildinfo
+
+# ========================
+# Environment variables
+# ========================
 .env
 .env.*
 !.env.example
 
-# Logs
+# ========================
+# Logs & runtime
+# ========================
 *.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-
-# OpenClaw / temp
-.kiro/
-sessions/
-
-# Hypothesis testing cache
-.hypothesis/
-
-# Documentation and memory
-docs/
-memory/
-
-# Docker
+logs/
+tmp/
+wget-log
 *.pid
 *.seed
 
+# ========================
+# OS files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# IDE
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ========================
+# Data / Storage (CRITICAL)
+# ========================
+backend/minio-data/
+backend/storage/*
+!backend/storage/.gitkeep
+docker-data/
+
+# ========================
+# Build / binaries
+# ========================
+colmap_build/
+*.deb
+*.tar
+*.so
+*.o
+*.a
+
+# ========================
+# 3D / ML artifacts
+# ========================
+*.ply
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.obj
+*.stl
+*.glb
+*.gltf
+
+# ========================
 # Test / cache
+# ========================
 .pytest_cache/
 .coverage
+coverage/
+htmlcov/
+.hypothesis/
+.tox/
 
-# Misc
+# ========================
+# Jupyter
+# ========================
+.ipynb_checkpoints/
+*.ipynb
+
+# ========================
+# Database
+# ========================
 *.sqlite3
 *.db
-.md
-.docsbackend/gaussian-splatting/
-backend/gaussian-splatting/
+
+# ========================
+# Temp / sessions
+# ========================
+.kiro/
+sessions/
