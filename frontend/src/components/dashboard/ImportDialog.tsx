@@ -33,6 +33,14 @@ export function ImportDialog({ open, onClose, onImportComplete }: ImportDialogPr
     pollingInterval: 2000,
   });
 
+  const handleClose = () => {
+    setSelectedFile(null);
+    setSceneName('');
+    setError(null);
+    setJobId(null);
+    onClose();
+  };
+
   useEffect(() => {
     if (statusData?.status === 'completed') {
       onImportComplete?.(statusData.scene_id);
@@ -84,14 +92,6 @@ export function ImportDialog({ open, onClose, onImportComplete }: ImportDialogPr
     } catch (err: any) {
       setError(err?.data?.message || 'Upload failed');
     }
-  };
-
-  const handleClose = () => {
-    setSelectedFile(null);
-    setSceneName('');
-    setError(null);
-    setJobId(null);
-    onClose();
   };
 
   const formatFileSize = (bytes: number): string => {

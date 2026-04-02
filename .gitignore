@@ -49,4 +49,5 @@ memory/
 *.sqlite3
 *.db
 .md
-.docs
+.docsbackend/gaussian-splatting/
+backend/gaussian-splatting/

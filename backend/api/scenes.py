@@ -44,6 +44,19 @@ from utils.minio_client import get_minio_client
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/scenes", tags=["scenes"])
 
+
+@router.post("/upload-test")
+async def upload_test(
+    file: UploadFile = File(...),
+):
+    """Test endpoint to debug file upload."""
+    return {
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "size": file.size,
+    }
+
+
 # Allowed video formats and max size
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
 ALLOWED_VIDEO_MIMETYPES = {
@@ -170,10 +183,10 @@ async def trigger_processing_job(scene_id: str, organization_id: str, db) -> str
 
 @router.post("/upload", response_model=SceneResponse, status_code=status.HTTP_201_CREATED)
 async def upload_video(
+    current_user: UserInDB = Depends(get_current_user),
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    current_user: UserInDB = Depends(get_current_user),
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -189,13 +202,16 @@ async def upload_video(
     db = await get_db()
     
     # Get organization context
-    if not current_user.organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to an organization to upload videos"
-        )
+    # Temporarily allow uploads without organization for testing
+    organization_id = current_user.organization_id or "default-org"
     
-    organization_id = current_user.organization_id
+    # if not current_user.organization_id:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="User must belong to an organization to upload videos"
+    #     )
+    
+    # organization_id = current_user.organization_id
     
     # Validate file
     if not file.filename:
@@ -220,40 +236,33 @@ async def upload_video(
     scene_id = str(uuid.uuid4())
     ext = get_file_extension(file.filename)
     
-    # Determine storage path
-    source_path = f"videos/{organization_id}/{scene_id}/original{ext}"
+    # Save to local folder instead of MinIO
+    import os
+    from pathlib import Path
     
-    # Upload to MinIO
+    # Create local storage directory
+    storage_dir = Path("storage/videos") / organization_id / scene_id
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save file locally
+    local_file_path = storage_dir / f"original{ext}"
+    source_path = str(local_file_path)
+    
     try:
-        minio = get_minio_client()
-        
-        # Ensure bucket exists
-        if not minio.bucket_exists("videos"):
-            minio.create_bucket("videos")
-        
-        # Upload file
-        from io import BytesIO
-        file_stream = BytesIO(file_content)
-        
-        minio.client.put_object(
-            bucket_name="videos",
-            object_name=f"{organization_id}/{scene_id}/original{ext}",
-            data=file_stream,
-            length=file_size,
-            content_type=file.content_type or "video/mp4"
-        )
+        with open(local_file_path, "wb") as f:
+            f.write(file_content)
         
         logger.info(
-            "video_uploaded_to_minio",
+            "video_saved_locally",
             scene_id=scene_id,
             path=source_path,
             size_bytes=file_size
         )
     except Exception as e:
-        logger.error("minio_upload_failed", scene_id=scene_id, error=str(e))
+        logger.error("local_save_failed", scene_id=scene_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to store video file"
+            detail=f"Failed to store video file: {str(e)}"
         )
     
     # Create scene document

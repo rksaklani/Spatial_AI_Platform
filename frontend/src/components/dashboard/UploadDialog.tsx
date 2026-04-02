@@ -122,7 +122,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
       
       const response = await axios.post(`${apiBaseUrl}/scenes/upload`, formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          // Don't set Content-Type - let axios set it with boundary
           'Authorization': `Bearer ${token}`,
         },
         cancelToken: cancelTokenRef.current.token,

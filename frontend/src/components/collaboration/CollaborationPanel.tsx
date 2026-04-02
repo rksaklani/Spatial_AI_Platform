@@ -5,7 +5,7 @@
  * Requirements: F6
  */
 
-import { ConnectionStatus } from '../../services/websocket.service';
+import type { ConnectionStatus } from '../../services/websocket.service';
 import type { CollaborationUser } from '../../hooks/useCollaboration';
 
 interface CollaborationPanelProps {

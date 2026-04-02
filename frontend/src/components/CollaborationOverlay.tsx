@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { websocketService, ConnectionStatus } from '../services/websocket.service';
+import { websocketService, type ConnectionStatus } from '../services/websocket.service';
 
 interface ActiveUser {
   userId: string;

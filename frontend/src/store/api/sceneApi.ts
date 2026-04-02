@@ -55,7 +55,7 @@ export const sceneApi = baseApi.injectEndpoints({
     >({
       query: ({ file, organizationId }) => {
         const formData = new FormData();
-        formData.append('video', file);
+        formData.append('file', file);
         formData.append('organizationId', organizationId);
         return {
           url: '/scenes/upload',
