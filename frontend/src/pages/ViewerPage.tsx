@@ -21,7 +21,7 @@ import type { AnnotationType, AnnotationMode } from '../hooks/useAnnotationCreat
  * Requirements: 5.1, 5.8, 5.9, F5
  */
 export function ViewerPage() {
-  const { sceneId } = useParams<{ sceneId: string }>();
+  const { id: sceneId } = useParams<{ id: string }>();
   const [renderingMode, setRenderingMode] = useState<'client' | 'server'>('client');
   const [showFps, setShowFps] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);

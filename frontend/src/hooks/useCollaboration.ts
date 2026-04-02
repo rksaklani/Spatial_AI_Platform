@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { websocketService, ConnectionStatus } from '../services/websocket.service';
+import { websocketService, type ConnectionStatus } from '../services/websocket.service';
 import { useAppSelector } from '../store/hooks';
 
 export interface CollaborationUser {

@@ -311,17 +311,17 @@ export const CollaborationOverlay: React.FC<CollaborationOverlayProps> = ({
 
       {/* Active users list */}
       <div className="active-users">
-        <h3>Active Users ({activeUsers.length})</h3>
+        <h3>Active Users ({activeUsers.size})</h3>
         <ul>
-          {activeUsers.map((user) => (
-            <li key={user.user_id}>
+          {Array.from(activeUsers.values()).map((user) => (
+            <li key={user.userId}>
               <span
                 className="user-indicator"
-                style={{ backgroundColor: `#${getUserColor(user.user_id).toString(16).padStart(6, '0')}` }}
+                style={{ backgroundColor: getColorHex(user.userId) }}
               />
               <span className="user-name">
-                {user.user_name}
-                {user.user_id === userId && ' (You)'}
+                {user.userName}
+                {user.userId === userId && ' (You)'}
               </span>
             </li>
           ))}

@@ -18,7 +18,7 @@ export const sceneApi = baseApi.injectEndpoints({
       query: () => '/scenes',
       transformResponse: (response: { items: any[] }) => {
         // Transform backend response (_id) to frontend format (sceneId)
-        return response.items.map(scene => ({
+        return response.items.map((scene) => ({
           ...scene,
           sceneId: scene._id || scene.sceneId,
           organizationId: scene.organization_id || scene.organizationId,
@@ -33,7 +33,7 @@ export const sceneApi = baseApi.injectEndpoints({
           tileCount: scene.tile_count || scene.tileCount || 0,
           gaussianCount: scene.gaussian_count || scene.gaussianCount || 0,
           bounds: scene.bounds || { min: [0, 0, 0], max: [0, 0, 0] },
-        })),
+        }));
       },
       providesTags: (result) =>
         result

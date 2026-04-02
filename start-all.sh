@@ -134,9 +134,18 @@ fi
 echo ""
 echo "Step 4: Starting Backend API..."
 echo "-----------------------------------"
-if port_in_use 8000; then
+
+# Check if backend is actually responding (not just port in use)
+if curl -s http://localhost:8000/health >/dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Backend already running on port 8000"
 else
+    # Kill any stale processes on port 8000
+    if port_in_use 8000; then
+        echo "Cleaning up stale backend process..."
+        lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
     cd backend
     
     # Activate virtual environment and start backend
@@ -152,6 +161,7 @@ else
             echo -e "   Docs: http://localhost:8000/docs"
         else
             echo -e "${RED}✗${NC} Backend failed to start"
+            echo "Check logs/backend.log for details"
             exit 1
         fi
     else
@@ -194,9 +204,18 @@ cd ..
 echo ""
 echo "Step 6: Starting Frontend..."
 echo "-----------------------------------"
-if port_in_use 5173; then
+
+# Check if frontend is actually responding (not just port in use)
+if curl -s http://localhost:5173 >/dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Frontend already running on port 5173"
 else
+    # Kill any stale processes on port 5173
+    if port_in_use 5173; then
+        echo "Cleaning up stale frontend process..."
+        lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
     cd frontend
     nohup npm run dev -- --host 0.0.0.0 > ../logs/frontend.log 2>&1 &
     FRONTEND_PID=$!
@@ -206,8 +225,10 @@ else
     if wait_for_service "http://localhost:5173" "Frontend"; then
         echo -e "${GREEN}✓${NC} Frontend started (PID: $FRONTEND_PID)"
         echo -e "   URL: http://localhost:5173"
+        echo -e "   Network: http://10.0.0.65:5173"
     else
         echo -e "${RED}✗${NC} Frontend failed to start"
+        echo "Check logs/frontend.log for details"
         exit 1
     fi
 fi
@@ -234,7 +255,8 @@ echo "  ✓ GPU Acceleration (CUDA 12.1 + RTX 4090)"
 echo "  ✓ FFmpeg Video Processing"
 echo ""
 echo "Access the platform:"
-echo "  🌐 Open: http://localhost:5173"
+echo "  🌐 Local:   http://localhost:5173"
+echo "  🌐 Network: http://10.0.0.65:5173"
 echo "  📚 API Docs: http://localhost:8000/docs"
 echo "  🗄️  MinIO Console: http://localhost:9001"
 echo ""
