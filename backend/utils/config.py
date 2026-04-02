@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     base_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:5173"
     cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     
     # Environment

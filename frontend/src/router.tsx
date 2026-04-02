@@ -23,6 +23,7 @@ const CollaborationPage = lazy(() => import('./pages/CollaborationPage').then(m 
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const PhotoInspectorPage = lazy(() => import('./pages/PhotoInspectorPage').then(m => ({ default: m.PhotoInspectorPage })));
 const PublicSceneViewerPage = lazy(() => import('./pages/PublicSceneViewerPage').then(m => ({ default: m.PublicSceneViewerPage })));
+const EmbedViewerPage = lazy(() => import('./pages/EmbedViewerPage').then(m => ({ default: m.EmbedViewerPage })));
 
 // Suspense wrapper for lazy-loaded components
 const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -279,6 +280,16 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <PublicSceneViewerPage />
+      </SuspenseWrapper>
+    ),
+  },
+
+  // Embed viewer (no auth required)
+  {
+    path: '/embed/scenes/:id',
+    element: (
+      <SuspenseWrapper>
+        <EmbedViewerPage />
       </SuspenseWrapper>
     ),
   },

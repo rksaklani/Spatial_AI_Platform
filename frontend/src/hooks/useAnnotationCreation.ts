@@ -7,7 +7,7 @@ import { useCallback, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { useCreateAnnotationMutation } from '../store/api/annotationApi';
 
-export type AnnotationType = 'point' | 'line' | 'area' | 'text';
+export type AnnotationType = 'point' | 'line' | 'area' | 'text' | 'slope' | 'volume';
 export type AnnotationMode = 'view' | 'create' | 'edit';
 
 interface Position3D {
@@ -142,7 +142,7 @@ export function useAnnotationCreation({
             console.error('Failed to create text annotation:', error);
           }
         }
-      } else if (selectedType === 'line' || selectedType === 'area') {
+      } else if (selectedType === 'line' || selectedType === 'area' || selectedType === 'slope' || selectedType === 'volume') {
         // Multi-point annotation: collect points
         const newPoints = [...points, position];
         setPoints(newPoints);
@@ -166,7 +166,7 @@ export function useAnnotationCreation({
   const handleDoubleClick = useCallback(
     async (event: MouseEvent, domElement: HTMLElement) => {
       if (mode !== 'create' || !selectedType) return;
-      if (selectedType !== 'line' && selectedType !== 'area') return;
+      if (selectedType !== 'line' && selectedType !== 'area' && selectedType !== 'slope' && selectedType !== 'volume') return;
 
       event.preventDefault();
 
@@ -226,6 +226,76 @@ export function useAnnotationCreation({
               color,
             },
           }).unwrap();
+        } else if (selectedType === 'slope') {
+          // Calculate slope between two points
+          if (finalPoints.length !== 2) {
+            alert('Slope measurement requires exactly 2 points');
+            return;
+          }
+          
+          const p1 = finalPoints[0];
+          const p2 = finalPoints[1];
+          
+          // Calculate horizontal distance
+          const horizontalDistance = Math.sqrt(
+            Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2)
+          );
+          
+          // Calculate vertical distance (elevation change)
+          const verticalDistance = p2.z - p1.z;
+          
+          // Calculate slope as percentage and degrees
+          const slopePercent = (verticalDistance / horizontalDistance) * 100;
+          const slopeDegrees = Math.atan(verticalDistance / horizontalDistance) * (180 / Math.PI);
+          
+          await createAnnotation({
+            sceneId,
+            type: 'measurement',
+            position: [finalPoints[0].x, finalPoints[0].y, finalPoints[0].z],
+            content: `Slope: ${slopePercent.toFixed(1)}% (${slopeDegrees.toFixed(1)}°)`,
+            metadata: {
+              measurement_type: 'slope',
+              slope_percent: slopePercent,
+              slope_degrees: slopeDegrees,
+              horizontal_distance: horizontalDistance,
+              vertical_distance: verticalDistance,
+              points: finalPoints.map((p) => [p.x, p.y, p.z] as [number, number, number]),
+              color,
+            },
+          }).unwrap();
+        } else if (selectedType === 'volume') {
+          // Calculate volume using convex hull approximation
+          if (finalPoints.length < 4) {
+            alert('Volume measurement requires at least 4 points');
+            return;
+          }
+          
+          // Simple volume calculation using bounding box
+          const xs = finalPoints.map(p => p.x);
+          const ys = finalPoints.map(p => p.y);
+          const zs = finalPoints.map(p => p.z);
+          
+          const width = Math.max(...xs) - Math.min(...xs);
+          const depth = Math.max(...ys) - Math.min(...ys);
+          const height = Math.max(...zs) - Math.min(...zs);
+          
+          const volume = width * depth * height;
+          
+          await createAnnotation({
+            sceneId,
+            type: 'measurement',
+            position: [finalPoints[0].x, finalPoints[0].y, finalPoints[0].z],
+            content: `Volume: ${volume.toFixed(2)}m³`,
+            metadata: {
+              measurement_type: 'volume',
+              volume,
+              width,
+              depth,
+              height,
+              points: finalPoints.map((p) => [p.x, p.y, p.z] as [number, number, number]),
+              color,
+            },
+          }).unwrap();
         }
 
         // Clear state
@@ -253,7 +323,7 @@ export function useAnnotationCreation({
   const handleMouseMove = useCallback(
     (event: MouseEvent, domElement: HTMLElement) => {
       if (mode !== 'create' || !selectedType) return;
-      if (selectedType !== 'line' && selectedType !== 'area') return;
+      if (selectedType !== 'line' && selectedType !== 'area' && selectedType !== 'slope' && selectedType !== 'volume') return;
       if (points.length === 0) return;
 
       const position = raycast(event, domElement);

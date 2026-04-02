@@ -26,6 +26,9 @@ from api.scene_comparison import router as comparison_router
 from api.photos import router as photos_router
 from api.geospatial import router as geospatial_router
 from api.orthophotos import router as orthophotos_router
+from api.protected_sharing import router as protected_sharing_router
+from api.photogrammetry import router as photogrammetry_router
+from api.branding import router as branding_router
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -127,6 +130,9 @@ app.include_router(comparison_router, tags=["Scene Comparison"])
 app.include_router(photos_router, prefix="/api/v1", tags=["Photos"])
 app.include_router(geospatial_router, tags=["Geospatial"])
 app.include_router(orthophotos_router, tags=["Orthophotos"])
+app.include_router(protected_sharing_router, tags=["Protected Sharing"])
+app.include_router(photogrammetry_router, tags=["Photogrammetry"])
+app.include_router(branding_router, tags=["Branding"])
 
 
 @app.get("/")

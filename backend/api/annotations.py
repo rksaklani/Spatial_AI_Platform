@@ -112,6 +112,87 @@ def calculate_polygon_area(points: List[Position3D]) -> float:
     return abs(area) / 2.0
 
 
+def calculate_slope(p1: Position3D, p2: Position3D) -> dict:
+    """
+    Calculate slope between two 3D points.
+    
+    Args:
+        p1: First point (start)
+        p2: Second point (end)
+        
+    Returns:
+        Dictionary with slope_percent, slope_degrees, horizontal_distance, vertical_distance
+    """
+    # Calculate horizontal distance (XY plane)
+    horizontal_distance = math.sqrt(
+        (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2
+    )
+    
+    # Calculate vertical distance (Z axis)
+    vertical_distance = p2.z - p1.z
+    
+    # Avoid division by zero
+    if horizontal_distance == 0:
+        return {
+            "slope_percent": 0.0,
+            "slope_degrees": 90.0 if vertical_distance != 0 else 0.0,
+            "horizontal_distance": 0.0,
+            "vertical_distance": vertical_distance
+        }
+    
+    # Calculate slope as percentage
+    slope_percent = (vertical_distance / horizontal_distance) * 100
+    
+    # Calculate slope in degrees
+    slope_degrees = math.degrees(math.atan(vertical_distance / horizontal_distance))
+    
+    return {
+        "slope_percent": slope_percent,
+        "slope_degrees": slope_degrees,
+        "horizontal_distance": horizontal_distance,
+        "vertical_distance": vertical_distance
+    }
+
+
+def calculate_volume(points: List[Position3D]) -> dict:
+    """
+    Calculate volume using bounding box method.
+    
+    Args:
+        points: List of points defining the volume
+        
+    Returns:
+        Dictionary with volume, width, depth, height
+    """
+    if len(points) < 4:
+        return {
+            "volume": 0.0,
+            "width": 0.0,
+            "depth": 0.0,
+            "height": 0.0
+        }
+    
+    # Extract coordinates
+    xs = [p.x for p in points]
+    ys = [p.y for p in points]
+    zs = [p.z for p in points]
+    
+    # Calculate bounding box dimensions
+    width = max(xs) - min(xs)
+    depth = max(ys) - min(ys)
+    height = max(zs) - min(zs)
+    
+    # Calculate volume
+    volume = width * depth * height
+    
+    return {
+        "volume": volume,
+        "width": width,
+        "depth": depth,
+        "height": height
+    }
+
+
 async def verify_scene_access(scene_id: str, organization_id: str, db) -> dict:
     """
     Verify user has access to scene.
@@ -198,6 +279,27 @@ async def create_annotation(
         elif measurement_data.measurement_type == "area" and len(measurement_data.points) >= 3:
             if measurement_data.value == 0.0:
                 measurement_data.value = calculate_polygon_area(measurement_data.points)
+                measurement_data.unit = "m²"
+        
+        elif measurement_data.measurement_type == "slope" and len(measurement_data.points) == 2:
+            # Calculate slope
+            slope_data = calculate_slope(measurement_data.points[0], measurement_data.points[1])
+            measurement_data.value = slope_data["slope_percent"]
+            measurement_data.unit = "%"
+            # Store additional slope data in metadata
+            if not annotation.metadata:
+                annotation.metadata = {}
+            annotation.metadata.update(slope_data)
+        
+        elif measurement_data.measurement_type == "volume" and len(measurement_data.points) >= 4:
+            # Calculate volume
+            volume_data = calculate_volume(measurement_data.points)
+            measurement_data.value = volume_data["volume"]
+            measurement_data.unit = "m³"
+            # Store additional volume data in metadata
+            if not annotation.metadata:
+                annotation.metadata = {}
+            annotation.metadata.update(volume_data)
                 measurement_data.unit = "m2"
     
     # Create annotation document
