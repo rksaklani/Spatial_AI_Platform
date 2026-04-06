@@ -119,3 +119,8 @@ htmlcov/
 .kiro/
 sessions/
 memory/
+MEMORY.md
+backend/check_*
+backend/fix_*
+backend/restart_workers.sh
+fix_scene_status.*
