@@ -688,7 +688,9 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         try:
             objects = minio.client.list_objects("scenes", prefix=f"{scene_id}/sparse/", recursive=True)
             for obj in objects:
-                local_path = os.path.join(work_dir, obj.object_name.replace(f"{scene_id}/", ""))
+                # Remove scene_id/sparse/ prefix to get the correct local path
+                # MinIO: scene_id/sparse/sparse/0/cameras.bin -> Local: sparse/0/cameras.bin
+                local_path = os.path.join(work_dir, obj.object_name.replace(f"{scene_id}/sparse/", ""))
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 minio.download_file("scenes", obj.object_name, local_path)
             

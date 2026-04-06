@@ -754,13 +754,14 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
         shutil.copy2(src, dst)
     
     try:
-        # Feature extraction with more lenient settings
-        logger.info("Running COLMAP feature extraction...")
+        # Feature extraction with SIMPLE_PINHOLE camera model for Gaussian Splatting compatibility
+        logger.info("Running COLMAP feature extraction with SIMPLE_PINHOLE camera model...")
         result = subprocess.run([
             "colmap", "feature_extractor",
             "--database_path", database_path,
             "--image_path", images_dir,
             "--ImageReader.single_camera", "1",
+            "--ImageReader.camera_model", "SIMPLE_PINHOLE",  # Required for Gaussian Splatting
             "--SiftExtraction.use_gpu", "0",
             "--SiftExtraction.max_num_features", "8192",  # More features
             "--SiftExtraction.first_octave", "-1",  # Detect smaller features
