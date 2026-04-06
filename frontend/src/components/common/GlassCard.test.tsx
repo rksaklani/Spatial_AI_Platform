@@ -17,7 +17,7 @@ describe('GlassCard Component', () => {
 
     it('applies base glassmorphism styles', () => {
       render(<GlassCard>Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('bg-glass-bg');
       expect(card).toHaveClass('rounded-xl');
       expect(card).toHaveClass('border');
@@ -27,7 +27,7 @@ describe('GlassCard Component', () => {
 
     it('applies custom className', () => {
       render(<GlassCard className="custom-glass">Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('custom-glass');
     });
   });
@@ -35,31 +35,31 @@ describe('GlassCard Component', () => {
   describe('Blur Levels', () => {
     it('applies xl blur by default', () => {
       render(<GlassCard>Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('backdrop-blur-xl');
     });
 
     it('applies sm blur when specified', () => {
       render(<GlassCard blur="sm">Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('backdrop-blur-sm');
     });
 
     it('applies md blur when specified', () => {
       render(<GlassCard blur="md">Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('backdrop-blur-md');
     });
 
     it('applies lg blur when specified', () => {
       render(<GlassCard blur="lg">Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('backdrop-blur-lg');
     });
 
     it('applies xl blur when specified', () => {
       render(<GlassCard blur="xl">Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('backdrop-blur-xl');
     });
   });
@@ -68,7 +68,7 @@ describe('GlassCard Component', () => {
     it('calls onClick handler when clicked', () => {
       const handleClick = vi.fn();
       render(<GlassCard onClick={handleClick}>Click Me</GlassCard>);
-      const card = screen.getByText('Click Me').parentElement;
+      const card = screen.getByText('Click Me');
       fireEvent.click(card!);
       expect(handleClick).toHaveBeenCalledTimes(1);
     });
@@ -76,14 +76,14 @@ describe('GlassCard Component', () => {
     it('applies cursor-pointer and hover styles when onClick is provided', () => {
       const handleClick = vi.fn();
       render(<GlassCard onClick={handleClick}>Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('cursor-pointer');
       expect(card).toHaveClass('hover:border-accent-primary/50');
     });
 
     it('does not apply cursor-pointer when onClick is not provided', () => {
       render(<GlassCard>Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).not.toHaveClass('cursor-pointer');
     });
   });
@@ -91,7 +91,7 @@ describe('GlassCard Component', () => {
   describe('Transitions', () => {
     it('has transition classes', () => {
       render(<GlassCard>Content</GlassCard>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('transition-all');
       expect(card).toHaveClass('duration-300');
     });

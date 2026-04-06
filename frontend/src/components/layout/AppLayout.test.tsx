@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { AppLayout } from './AppLayout';
 import authReducer from '../../store/slices/authSlice';
+import preferencesReducer from '../../store/slices/preferencesSlice';
 
 // Mock the useMediaQuery hook
 vi.mock('../../hooks/useMediaQuery', () => ({
@@ -27,6 +28,7 @@ describe('AppLayout', () => {
     return configureStore({
       reducer: {
         auth: authReducer,
+        preferences: preferencesReducer,
       },
       preloadedState: {
         auth: {
@@ -40,6 +42,23 @@ describe('AppLayout', () => {
           refreshing: false,
           refreshRetryCount: 0,
           ...authState,
+        },
+        preferences: {
+          theme: 'dark',
+          language: 'en',
+          viewerSettings: {
+            defaultRenderingMode: 'client',
+            showFps: true,
+            showCoordinates: false,
+            autoRotate: false,
+            quality: 'high',
+          },
+          notificationSettings: {
+            processingComplete: true,
+            mentions: true,
+            collaborationUpdates: true,
+            email: true,
+          },
         },
       },
     });
@@ -74,7 +93,7 @@ describe('AppLayout', () => {
   it('applies correct margin when sidebar is not collapsed', () => {
     const { container } = renderWithProviders();
     const mainElement = container.querySelector('main');
-    expect(mainElement).toHaveClass('ml-64');
+    expect(mainElement).toHaveClass('ml-72');
   });
 
   it('passes user information to NavigationBar', () => {

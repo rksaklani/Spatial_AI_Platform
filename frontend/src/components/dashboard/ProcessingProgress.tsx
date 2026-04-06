@@ -11,13 +11,42 @@ interface ProcessingStage {
 }
 
 const PROCESSING_STAGES: ProcessingStage[] = [
-  { name: 'upload', label: 'Uploading', icon: '📤' },
-  { name: 'extract_frames', label: 'Extracting Frames', icon: '🎬' },
-  { name: 'pose_estimation', label: 'Estimating Poses', icon: '📐' },
-  { name: 'depth_estimation', label: 'Estimating Depth', icon: '🗺️' },
-  { name: 'reconstruction', label: 'Reconstructing 3D', icon: '🏗️' },
+  { name: 'uploading', label: 'Uploading', icon: '📤' },
+  { name: 'extracting_frames', label: 'Extracting Frames', icon: '🎬' },
+  { name: 'estimating_poses', label: 'Estimating Poses', icon: '📐' },
+  { name: 'generating_depth', label: 'Estimating Depth', icon: '🗺️' },
+  { name: 'training', label: 'Training (Gaussian Splatting)', icon: '🏗️' },
   { name: 'tiling', label: 'Generating Tiles', icon: '🧩' },
 ];
+
+function normalizeProcessingStep(step?: string | null): string {
+  if (!step) return 'uploading';
+
+  // Video pipeline steps
+  if (['initializing', 'downloading', 'filtering_frames', 'uploading_frames', 'uploading_depth', 'uploading'].includes(step)) {
+    return 'uploading';
+  }
+  if (step === 'extracting_frames') return 'extracting_frames';
+  if (step === 'pose_estimation') return 'estimating_poses';
+  if (step === 'depth_estimation') return 'generating_depth';
+
+  // Gaussian splatting + import steps
+  if (['training', 'loading', 'optimizing', 'generating_lod', 'converting', 'parsing', 'saving', 'starting'].includes(step)) {
+    return 'training';
+  }
+
+  // Tiling/optimization steps
+  if (['building_octree', 'pruning', 'merging', 'saving_metadata', 'tiling'].includes(step)) {
+    return 'tiling';
+  }
+
+  // Scene-level queued statuses sometimes leak into current_step
+  if (['queued_reconstruction', 'queued_tiling'].includes(step)) {
+    return 'training';
+  }
+
+  return step;
+}
 
 interface ProcessingProgressProps {
   sceneId: string;
@@ -26,7 +55,7 @@ interface ProcessingProgressProps {
 }
 
 export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingProgressProps) {
-  const [currentStage, setCurrentStage] = useState<string>('upload');
+  const [currentStage, setCurrentStage] = useState<string>('uploading');
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isJobComplete, setIsJobComplete] = useState(false);
@@ -56,6 +85,8 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     pollingInterval: 5000,
     enableWebSocket: true,
   });
+
+  const normalizedStep = normalizeProcessingStep(currentStep || currentStage);
 
   useEffect(() => {
     if (!jobs || jobs.length === 0) return;
@@ -129,7 +160,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     );
   }
 
-  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.name === (currentStep || currentStage));
+  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.name === normalizedStep);
   const completedStages = currentStageIndex >= 0 ? currentStageIndex : 0;
   
   // Use real-time progress data when available
@@ -139,7 +170,9 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
   return (
     <div className="space-y-6">
       {/* Real-time training progress display (when training) */}
-      {currentStep === 'reconstructing' && currentIteration !== undefined && totalIterations !== undefined && (
+      {normalizedStep === 'training' &&
+        currentIteration !== undefined &&
+        totalIterations !== undefined && (
         <TrainingProgressDisplay
           progressPercent={displayProgress}
           currentIteration={currentIteration}
@@ -151,7 +184,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       )}
       
       {/* Standard progress bar for other stages */}
-      {currentStep !== 'reconstructing' && (
+      {normalizedStep !== 'training' && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Processing Scene</span>
@@ -169,7 +202,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       {/* Stage indicators */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {PROCESSING_STAGES.map((stage, index) => {
-          const isActive = stage.name === (currentStep || currentStage);
+          const isActive = stage.name === normalizedStep;
           const isCompleted = index < completedStages;
           const isPending = index > completedStages;
 
@@ -201,6 +234,18 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
           </p>
         </div>
       )}
+
+      {/* Verification: show raw step + iterations */}
+      <div className="text-xs text-text-muted flex flex-wrap gap-x-4 gap-y-1 justify-center">
+        <span>
+          Step: <span className="font-mono text-text-secondary">{currentStep || currentStage || 'n/a'}</span>
+        </span>
+        {currentIteration !== undefined && totalIterations !== undefined && (
+          <span>
+            Iter: <span className="font-mono text-text-secondary">{currentIteration}/{totalIterations}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

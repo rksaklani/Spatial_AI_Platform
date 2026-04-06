@@ -6,8 +6,10 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { apiService, ProgressResponse } from '../services/api.service';
-import { useProgressWebSocket, ProgressUpdate } from './useProgressWebSocket';
+import { apiService } from '../services/api.service';
+import type { ProgressResponse } from '../services/api.service';
+import { useProgressWebSocket } from './useProgressWebSocket';
+import type { ProgressUpdate } from './useProgressWebSocket';
 
 interface UseSceneProgressOptions {
   /** Scene ID to track */

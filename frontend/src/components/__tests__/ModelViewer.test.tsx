@@ -21,6 +21,7 @@ vi.mock('three', () => ({
     this.render = vi.fn();
     this.dispose = vi.fn();
     this.domElement = document.createElement('canvas');
+    this.info = { render: { calls: 0 } };
   }),
   AmbientLight: vi.fn(function() {
     this.intensity = 1;
@@ -76,12 +77,18 @@ vi.mock('three', () => ({
   MeshStandardMaterial: vi.fn(function() {
     this.vertexColors = true;
   }),
+  // Tone mapping constants used by ModelViewer
+  LinearToneMapping: 1,
+  ReinhardToneMapping: 2,
+  CineonToneMapping: 3,
+  ACESFilmicToneMapping: 4,
+  NoToneMapping: 0,
 }));
 
 // Mock loaders
-vi.mock('three/examples/jsm/loaders/GLTFLoader', () => ({
+vi.mock('three/addons/loaders/GLTFLoader.js', () => ({
   GLTFLoader: vi.fn(function() {
-    this.load = vi.fn((url, onLoad) => {
+    this.load = vi.fn((url, onLoad, onProgress) => {
       const mockModel = {
         children: [],
         position: {
@@ -94,16 +101,18 @@ vi.mock('three/examples/jsm/loaders/GLTFLoader', () => ({
           multiplyScalar: vi.fn(function() { return this; }),
         },
       };
+      onProgress?.({ loaded: 50, total: 100 });
       setTimeout(() => onLoad({ scene: mockModel }), 100);
     });
   }),
 }));
 
-vi.mock('three/examples/jsm/loaders/OBJLoader', () => ({
+vi.mock('three/addons/loaders/OBJLoader.js', () => ({
   OBJLoader: vi.fn(function() {
-    this.load = vi.fn((url, onLoad) => {
+    this.load = vi.fn((url, onLoad, onProgress) => {
       const mockModel = {
         children: [],
+        traverse: vi.fn(),
         position: {
           x: 0, y: 0, z: 0,
           sub: vi.fn(function() { return this; }),
@@ -114,15 +123,25 @@ vi.mock('three/examples/jsm/loaders/OBJLoader', () => ({
           multiplyScalar: vi.fn(function() { return this; }),
         },
       };
+      onProgress?.({ loaded: 50, total: 100 });
       setTimeout(() => onLoad(mockModel), 100);
     });
   }),
 }));
 
-vi.mock('three/examples/jsm/loaders/PLYLoader', () => ({
+vi.mock('three/addons/loaders/PLYLoader.js', () => ({
   PLYLoader: vi.fn(function() {
-    this.load = vi.fn((url, onLoad) => {
-      setTimeout(() => onLoad({}), 100);
+    this.load = vi.fn((url, onLoad, onProgress) => {
+      onProgress?.({ loaded: 50, total: 100 });
+      const geometry = {
+        attributes: {
+          // Ensure ModelViewer can check normals/colors safely
+          normal: undefined,
+          color: undefined,
+        },
+        computeVertexNormals: vi.fn(),
+      };
+      setTimeout(() => onLoad(geometry as any), 100);
     });
   }),
 }));
@@ -136,19 +155,62 @@ vi.mock('three/addons/controls/OrbitControls.js', () => ({
   }),
 }));
 
+vi.mock('three/addons/loaders/MTLLoader.js', () => ({
+  MTLLoader: vi.fn(function() {
+    this.load = vi.fn((_url, _onLoad, _onProgress, onError) => {
+      // Most tests don't include .mtl, so simulate missing file gracefully
+      onError?.(new Error('MTL not found'));
+    });
+  }),
+}));
+
+vi.mock('three/addons/loaders/STLLoader.js', () => ({
+  STLLoader: vi.fn(function() {
+    this.load = vi.fn((_url, onLoad) => setTimeout(() => onLoad({}), 100));
+  }),
+}));
+
+vi.mock('three/addons/loaders/FBXLoader.js', () => ({
+  FBXLoader: vi.fn(function() {
+    this.load = vi.fn((_url, onLoad) => setTimeout(() => onLoad({}), 100));
+  }),
+}));
+
+vi.mock('three/addons/loaders/ColladaLoader.js', () => ({
+  ColladaLoader: vi.fn(function() {
+    this.load = vi.fn((_url, onLoad) => setTimeout(() => onLoad({ scene: {} }), 100));
+  }),
+}));
+
 describe('ModelViewer', () => {
   const mockOnError = vi.fn();
   const mockOnLoadProgress = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Prevent infinite animation loop issues in jsdom
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      return window.setTimeout(() => cb(performance.now()), 0) as unknown as number;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id: number) => {
+      clearTimeout(id as unknown as any);
+    });
+
+    // Mock fetch used by ModelViewer to download models
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      return {
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(16),
+        blob: async () => new Blob([new Uint8Array([0, 1, 2])]),
+      } as any;
+    }));
   });
 
   it('renders GLB model', async () => {
     render(
       <ModelViewer
         sceneId="test-scene"
-        modelUrl="/test.glb"
+        modelUrl="http://localhost/test.glb"
         modelType="glb"
         onError={mockOnError}
         onLoadProgress={mockOnLoadProgress}
@@ -164,7 +226,7 @@ describe('ModelViewer', () => {
     render(
       <ModelViewer
         sceneId="test-scene"
-        modelUrl="/test.gltf"
+        modelUrl="http://localhost/test.gltf"
         modelType="gltf"
         onError={mockOnError}
         onLoadProgress={mockOnLoadProgress}
@@ -180,7 +242,7 @@ describe('ModelViewer', () => {
     render(
       <ModelViewer
         sceneId="test-scene"
-        modelUrl="/test.obj"
+        modelUrl="http://localhost/test.obj"
         modelType="obj"
         onError={mockOnError}
         onLoadProgress={mockOnLoadProgress}
@@ -196,7 +258,7 @@ describe('ModelViewer', () => {
     render(
       <ModelViewer
         sceneId="test-scene"
-        modelUrl="/test.ply"
+        modelUrl="http://localhost/test.ply"
         modelType="ply"
         onError={mockOnError}
         onLoadProgress={mockOnLoadProgress}

@@ -8,7 +8,9 @@ describe('Button Component', () => {
       render(<Button variant="primary">Primary Button</Button>);
       const button = screen.getByRole('button', { name: /primary button/i });
       expect(button).toBeInTheDocument();
-      expect(button).toHaveClass('bg-accent-primary');
+      // Primary uses gradient classes
+      expect(button).toHaveClass('from-accent-primary');
+      expect(button).toHaveClass('to-accent-secondary');
     });
 
     it('renders secondary variant correctly', () => {

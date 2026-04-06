@@ -1,6 +1,8 @@
 import React from 'react';
 import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
+import SceneProgressIndicator from '../SceneProgressIndicator';
+import { useGetSceneJobsQuery } from '../../store/api/sceneApi';
 import type { SceneMetadata } from '../../types/scene.types';
 
 export interface SceneCardProps {
@@ -40,8 +42,28 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   };
 
   const isViewable = scene.status === 'ready' || scene.status === 'completed';
-  const isProcessing = ['uploaded', 'processing', 'extracting_frames', 'estimating_poses', 'generating_depth', 'reconstructing', 'tiling'].includes(scene.status);
+  const isProcessing = [
+    'uploaded',
+    'uploading',
+    'processing',
+    'extracting_frames',
+    'estimating_poses',
+    'generating_depth',
+    'reconstructing',
+    'tiling',
+    'queued_reconstruction',
+    'queued_tiling',
+  ].includes(scene.status);
   const isFailed = scene.status === 'failed';
+
+  const { data: jobs = [] } = useGetSceneJobsQuery(scene.sceneId, {
+    pollingInterval: isProcessing ? 5000 : 0,
+    skip: !isProcessing,
+  });
+  const latestJob = jobs?.[0];
+  const jobStatus: string | undefined = latestJob?.status;
+  const progressPercent: number | undefined = latestJob?.progress_percent;
+  const currentStep: string | undefined = latestJob?.current_step;
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,7 +131,15 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         
         {/* Status badge overlay */}
         <div className="absolute top-3 right-3">
-          <StatusBadge status={scene.status} />
+          {isProcessing ? (
+            <SceneProgressIndicator
+              status={jobStatus || scene.status}
+              progressPercent={progressPercent}
+              currentStep={currentStep}
+            />
+          ) : (
+            <StatusBadge status={scene.status} />
+          )}
         </div>
 
         {/* Hover overlay */}

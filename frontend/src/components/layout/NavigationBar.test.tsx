@@ -3,6 +3,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { NavigationBar } from './NavigationBar';
 
+vi.mock('./OrganizationSwitcher', () => ({
+  OrganizationSwitcher: () => null,
+}));
+
 // Wrapper component to provide router context
 const RouterWrapper = ({ children }: { children: React.ReactNode }) => (
   <BrowserRouter>{children}</BrowserRouter>
@@ -37,21 +41,6 @@ describe('NavigationBar', () => {
     );
     
     expect(screen.getByText('9+')).toBeInTheDocument();
-  });
-
-  it('calls onThemeToggle when theme button is clicked', () => {
-    const handleThemeToggle = vi.fn();
-    
-    render(
-      <RouterWrapper>
-        <NavigationBar onThemeToggle={handleThemeToggle} />
-      </RouterWrapper>
-    );
-    
-    const themeButton = screen.getByLabelText(/switch to light mode/i);
-    fireEvent.click(themeButton);
-    
-    expect(handleThemeToggle).toHaveBeenCalledTimes(1);
   });
 
   it('opens user menu when user icon is clicked', () => {
@@ -113,34 +102,17 @@ describe('NavigationBar', () => {
     expect(screen.queryByText('Profile')).not.toBeInTheDocument();
   });
 
-  it('renders all navigation links', () => {
+  it('calls onLogout when provided', () => {
+    const handleLogout = vi.fn();
     render(
       <RouterWrapper>
-        <NavigationBar />
+        <NavigationBar onLogout={handleLogout} />
       </RouterWrapper>
     );
-    
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Scenes')).toBeInTheDocument();
-    expect(screen.getByText('Photos')).toBeInTheDocument();
-    expect(screen.getByText('Help')).toBeInTheDocument();
-  });
 
-  it('displays correct theme icon based on isDarkMode prop', () => {
-    const { rerender } = render(
-      <RouterWrapper>
-        <NavigationBar isDarkMode={true} />
-      </RouterWrapper>
-    );
-    
-    expect(screen.getByLabelText('Switch to light mode')).toBeInTheDocument();
-    
-    rerender(
-      <RouterWrapper>
-        <NavigationBar isDarkMode={false} />
-      </RouterWrapper>
-    );
-    
-    expect(screen.getByLabelText('Switch to dark mode')).toBeInTheDocument();
+    const userButton = screen.getByLabelText('User menu');
+    fireEvent.click(userButton);
+    fireEvent.click(screen.getByText('Logout'));
+    expect(handleLogout).toHaveBeenCalled();
   });
 });

@@ -6,25 +6,46 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { websocketService } from '../websocket.service';
 import type { ConnectionStatus } from '../../types/websocket.types';
 
-// Mock socket.io-client
-vi.mock('socket.io-client', () => {
-  const mockSocket = {
-    connected: false,
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  };
+class MockWebSocket {
+  static instances: MockWebSocket[] = [];
+  static OPEN = 1;
+  static CLOSED = 3;
 
-  return {
-    io: vi.fn(() => mockSocket),
-  };
-});
+  readyState = MockWebSocket.CLOSED;
+  url: string;
+  onopen: ((ev: any) => any) | null = null;
+  onclose: ((ev: any) => any) | null = null;
+  onerror: ((ev: any) => any) | null = null;
+  onmessage: ((ev: any) => any) | null = null;
+
+  send = vi.fn();
+  close = vi.fn(() => {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({ code: 1000, reason: 'closed' });
+  });
+
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
+
+  // Helpers for tests
+  __open() {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.({});
+  }
+  __fail(code = 1006) {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({ code, reason: 'abnormal' });
+  }
+}
 
 describe('WebSocketService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+    (globalThis as any).WebSocket = MockWebSocket as any;
     // Clear internal state
     websocketService['eventHandlers'].clear();
     websocketService['statusListeners'].clear();
@@ -32,6 +53,7 @@ describe('WebSocketService', () => {
 
   afterEach(() => {
     websocketService.disconnect();
+    vi.useRealTimers();
   });
 
   describe('Connection Management', () => {
@@ -122,14 +144,28 @@ describe('WebSocketService', () => {
     it('should implement exponential backoff for reconnection', () => {
       const service = websocketService as any;
 
-      // Test exponential backoff calculation
+      // Stub connect so scheduleReconnect doesn't create real WebSocket instances
+      const connectSpy = vi.spyOn(websocketService, 'connect').mockImplementation(() => {});
+
+      // Provide the state scheduleReconnect needs
+      service.currentSceneId = 'test-scene-id';
+      service.currentToken = 'test-token';
+
+      // Attempt 0 -> delay 1000ms
       service.reconnectAttempts = 0;
       service.scheduleReconnect();
+      expect(connectSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1000);
       expect(service.reconnectAttempts).toBe(1);
+      expect(connectSpy).toHaveBeenCalled();
 
+      // Attempt 3 -> delay 8000ms (1s * 2^3)
+      connectSpy.mockClear();
       service.reconnectAttempts = 3;
       service.scheduleReconnect();
+      vi.advanceTimersByTime(8000);
       expect(service.reconnectAttempts).toBe(4);
+      expect(connectSpy).toHaveBeenCalled();
     });
 
     it('should stop reconnecting after max attempts', () => {

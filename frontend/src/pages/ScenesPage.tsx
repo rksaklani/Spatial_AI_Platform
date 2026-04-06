@@ -39,12 +39,15 @@ export function ScenesPage() {
   const processingScenes = useMemo(() => {
     const processingStatuses = [
       'uploaded',
+      'uploading',
       'processing', 
       'extracting_frames', 
       'estimating_poses', 
       'generating_depth', 
       'reconstructing', 
-      'tiling'
+      'tiling',
+      'queued_reconstruction',
+      'queued_tiling',
     ];
     return scenes.filter(scene => 
       processingStatuses.includes(scene.status)
@@ -209,7 +212,9 @@ export function ScenesPage() {
               />
             </div>
           )}
-          {processingScenes.map(scene => (
+          {processingScenes
+            .filter(scene => scene.sceneId !== processingSceneId)
+            .map(scene => (
             <div key={scene.sceneId} className="bg-secondary-bg border border-border-color rounded-xl p-6">
               <h3 className="text-lg font-semibold text-text-primary mb-4">{scene.name}</h3>
               <ProcessingProgress

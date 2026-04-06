@@ -5,7 +5,18 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { SceneMetadata, SceneTile } from '../../types/scene.types';
 
-export type SceneStatus = 'uploaded' | 'processing' | 'completed' | 'failed';
+export type SceneStatus =
+  | 'uploaded'
+  | 'uploading'
+  | 'processing'
+  | 'extracting_frames'
+  | 'estimating_poses'
+  | 'generating_depth'
+  | 'reconstructing'
+  | 'tiling'
+  | 'ready'
+  | 'completed'
+  | 'failed';
 
 export interface SceneFilters {
   status?: SceneStatus[];

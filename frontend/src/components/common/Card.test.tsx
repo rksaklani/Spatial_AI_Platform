@@ -17,7 +17,7 @@ describe('Card Component', () => {
 
     it('applies base styles', () => {
       render(<Card>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('bg-secondary-bg');
       expect(card).toHaveClass('rounded-xl');
       expect(card).toHaveClass('border');
@@ -27,7 +27,7 @@ describe('Card Component', () => {
 
     it('applies custom className', () => {
       render(<Card className="custom-class">Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('custom-class');
     });
   });
@@ -35,7 +35,7 @@ describe('Card Component', () => {
   describe('Hover Effects', () => {
     it('applies hover styles by default', () => {
       render(<Card>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('hover:border-accent-primary');
       expect(card).toHaveClass('hover:shadow-2xl');
       expect(card).toHaveClass('hover:-translate-y-1');
@@ -43,7 +43,7 @@ describe('Card Component', () => {
 
     it('does not apply hover styles when hover is false', () => {
       render(<Card hover={false}>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).not.toHaveClass('hover:border-accent-primary');
       expect(card).not.toHaveClass('hover:shadow-2xl');
       expect(card).not.toHaveClass('hover:-translate-y-1');
@@ -51,7 +51,7 @@ describe('Card Component', () => {
 
     it('has transition classes', () => {
       render(<Card>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('transition-all');
       expect(card).toHaveClass('duration-300');
     });
@@ -61,7 +61,7 @@ describe('Card Component', () => {
     it('calls onClick handler when clicked', () => {
       const handleClick = vi.fn();
       render(<Card onClick={handleClick}>Click Me</Card>);
-      const card = screen.getByText('Click Me').parentElement;
+      const card = screen.getByText('Click Me');
       fireEvent.click(card!);
       expect(handleClick).toHaveBeenCalledTimes(1);
     });
@@ -69,19 +69,19 @@ describe('Card Component', () => {
     it('applies cursor-pointer when onClick is provided', () => {
       const handleClick = vi.fn();
       render(<Card onClick={handleClick}>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('cursor-pointer');
     });
 
     it('applies cursor-pointer when hover is enabled', () => {
       render(<Card hover={true}>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).toHaveClass('cursor-pointer');
     });
 
     it('does not apply cursor-pointer when hover is disabled and no onClick', () => {
       render(<Card hover={false}>Content</Card>);
-      const card = screen.getByText('Content').parentElement;
+      const card = screen.getByText('Content');
       expect(card).not.toHaveClass('cursor-pointer');
     });
   });

@@ -16,7 +16,18 @@ export interface SceneMetadata {
   sourceFormat: string;
   format?: 'glb' | 'gltf' | 'obj' | 'ply' | 'splat' | 'las' | 'e57' | 'fbx' | 'dae' | 'stl' | 'ifc' | 'dxf';
   fileUrl?: string;
-  status: 'uploaded' | 'processing' | 'completed' | 'failed';
+  status:
+    | 'uploaded'
+    | 'uploading'
+    | 'processing'
+    | 'extracting_frames'
+    | 'estimating_poses'
+    | 'generating_depth'
+    | 'reconstructing'
+    | 'tiling'
+    | 'ready'
+    | 'completed'
+    | 'failed';
   bounds: BoundingBox;
   tileCount: number;
   gaussianCount: number;
