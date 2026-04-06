@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '../common';
 
 /**
@@ -49,6 +49,68 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   onOpenSettings,
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Initialize position on mount (centered at bottom)
+  useEffect(() => {
+    if (toolbarRef.current) {
+      const rect = toolbarRef.current.getBoundingClientRect();
+      setPosition({
+        x: (window.innerWidth - rect.width) / 2,
+        y: window.innerHeight - rect.height - 24, // 24px from bottom
+      });
+    }
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Prevent dragging when clicking on buttons
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      const handleMove = (e: MouseEvent) => {
+        if (toolbarRef.current) {
+          const newX = e.clientX - dragOffset.x;
+          const newY = e.clientY - dragOffset.y;
+
+          // Constrain to viewport
+          const rect = toolbarRef.current.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+
+          setPosition({
+            x: Math.max(0, Math.min(newX, maxX)),
+            y: Math.max(0, Math.min(newY, maxY)),
+          });
+        }
+      };
+
+      const handleUp = () => {
+        setIsDragging(false);
+      };
+
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('mouseup', handleUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
 
   // Format camera position for display
   const formatPosition = (pos?: [number, number, number]): string => {
@@ -64,9 +126,21 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+    <div
+      ref={toolbarRef}
+      className="fixed z-50"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        cursor: isDragging ? 'grabbing' : 'default',
+      }}
+    >
       {/* Main toolbar */}
-      <div className="bg-glass-bg backdrop-blur-xl rounded-xl border border-border-color shadow-2xl px-4 py-3">
+      <div
+        className="bg-glass-bg backdrop-blur-xl rounded-xl border border-border-color shadow-2xl px-4 py-3 select-none"
+        onMouseDown={handleMouseDown}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      >
         <div className="flex items-center gap-3">
           {/* Camera Controls Section */}
           <div className="flex items-center gap-2 border-r border-border-color pr-3">

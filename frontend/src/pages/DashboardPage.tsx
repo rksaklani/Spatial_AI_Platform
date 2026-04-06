@@ -39,7 +39,7 @@ export function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   // Fetch scenes
-  const { data: scenes = [], isLoading } = useGetScenesQuery();
+  const { data: scenes = [], isLoading, refetch } = useGetScenesQuery();
   const [uploadVideo] = useUploadVideoMutation();
   const [deleteScene] = useDeleteSceneMutation();
 
@@ -98,7 +98,21 @@ export function DashboardPage() {
   };
 
   const handleSceneClick = (sceneId: string) => {
-    navigate(`/app/viewer/${sceneId}`);
+    const scene = scenes.find(s => s.sceneId === sceneId);
+    
+    // Only navigate to viewer if scene is ready or completed
+    if (scene && (scene.status === 'ready' || scene.status === 'completed')) {
+      navigate(`/scenes/${sceneId}`);
+    } else {
+      // Scene is still processing or failed - show a message
+      console.log('Scene not ready for viewing:', scene?.status);
+      showToast(
+        scene?.status === 'failed' 
+          ? 'This scene failed processing. Please try uploading again.' 
+          : 'This scene is still processing. Please wait until it completes.',
+        scene?.status === 'failed' ? 'error' : 'info'
+      );
+    }
   };
 
   const handleSceneDelete = async (sceneId: string) => {
@@ -262,6 +276,7 @@ export function DashboardPage() {
           // Optionally navigate to the scene viewer
           // navigate(`/scenes/${sceneId}`);
         }}
+        onRefresh={refetch}
       />
 
       {/* Edit Dialog */}

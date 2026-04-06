@@ -74,6 +74,7 @@ class ImportFormatType(str, Enum):
 
 class ImportStatus(str, Enum):
     """Import job status."""
+    QUEUED = "queued"
     PENDING = "pending"
     UPLOADING = "uploading"
     VALIDATING = "validating"
@@ -240,7 +241,16 @@ async def save_uploaded_file(
                 chunk = await file.read(UPLOAD_CHUNK_SIZE)
         
         # Upload to MinIO
-        minio.upload_file("imports", object_path, temp_path)
+        success = minio.upload_file("imports", object_path, temp_path)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "upload_failed",
+                    "message": "Failed to upload file to storage. Please check MinIO configuration.",
+                }
+            )
         
         logger.info(f"Uploaded {file.filename} to imports/{object_path} ({file_size} bytes)")
         
@@ -279,6 +289,7 @@ async def create_import_scene(
         "_id": scene_id,
         "organization_id": organization_id,
         "created_by": user_id,
+        "owner_id": user_id,  # Add owner_id field
         "name": os.path.splitext(filename)[0],
         "description": f"Imported from {filename}",
         "status": SceneStatus.UPLOADING.value if hasattr(SceneStatus, 'UPLOADING') else "uploading",
@@ -288,6 +299,7 @@ async def create_import_scene(
         "original_filename": filename,
         "file_size_bytes": file_size,
         "storage_path": object_path,
+        "is_public": False,  # Add is_public field
         "created_at": now,
         "updated_at": now,
         "processing_metrics": {},

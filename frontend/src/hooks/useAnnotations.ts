@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAppSelector } from '../store/hooks';
 import { Annotation } from '../components/AnnotationOverlay';
 
 interface UseAnnotationsOptions {
@@ -36,14 +37,22 @@ export const useAnnotations = ({
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Get token from Redux state
+  const token = useAppSelector(state => state.auth.token);
 
   // Fetch annotations from API
   const fetchAnnotations = useCallback(async () => {
+    if (!token) {
+      setError(new Error('No authentication token available'));
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`/api/v1/scenes/${sceneId}/annotations`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -62,12 +71,15 @@ export const useAnnotations = ({
     } finally {
       setIsLoading(false);
     }
-  }, [sceneId]);
+  }, [sceneId, token]);
 
   // Create new annotation
   const createAnnotation = useCallback(async (annotation: Partial<Annotation>): Promise<Annotation> => {
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+    
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`/api/v1/scenes/${sceneId}/annotations`, {
         method: 'POST',
         headers: {
@@ -88,12 +100,15 @@ export const useAnnotations = ({
       console.error('Error creating annotation:', err);
       throw err;
     }
-  }, [sceneId]);
+  }, [sceneId, token]);
 
   // Update existing annotation
   const updateAnnotation = useCallback(async (id: string, updates: Partial<Annotation>): Promise<Annotation> => {
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+    
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`/api/v1/scenes/${sceneId}/annotations/${id}`, {
         method: 'PATCH',
         headers: {
@@ -114,12 +129,15 @@ export const useAnnotations = ({
       console.error('Error updating annotation:', err);
       throw err;
     }
-  }, [sceneId]);
+  }, [sceneId, token]);
 
   // Delete annotation
   const deleteAnnotation = useCallback(async (id: string): Promise<void> => {
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+    
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`/api/v1/scenes/${sceneId}/annotations/${id}`, {
         method: 'DELETE',
         headers: {
@@ -136,7 +154,7 @@ export const useAnnotations = ({
       console.error('Error deleting annotation:', err);
       throw err;
     }
-  }, [sceneId]);
+  }, [sceneId, token]);
 
   // Initial fetch
   useEffect(() => {

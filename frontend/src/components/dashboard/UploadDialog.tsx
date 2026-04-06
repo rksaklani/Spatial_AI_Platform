@@ -8,6 +8,7 @@ export interface UploadDialogProps {
   onClose: () => void;
   onUpload: (file: File) => void;
   onUploadComplete?: (sceneId: string) => void;
+  onRefresh?: () => void;
 }
 
 export interface UploadProgress {
@@ -34,6 +35,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
   onClose,
   onUpload,
   onUploadComplete,
+  onRefresh,
 }) => {
   // Get auth token from Redux store
   const token = useAppSelector(state => state.auth.token);
@@ -160,12 +162,19 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({
       });
 
       // Upload successful
-      if (onUploadComplete && response.data?.sceneId) {
-        onUploadComplete(response.data.sceneId);
+      const sceneId = response.data?._id || response.data?.sceneId;
+      
+      if (onUploadComplete && sceneId) {
+        onUploadComplete(sceneId);
       }
       
-      // Call the original onUpload callback
+      // Call the original onUpload callback to trigger RTK Query cache invalidation
       onUpload(selectedFile);
+      
+      // Manually refresh the scene list
+      if (onRefresh) {
+        onRefresh();
+      }
       
       // Close dialog
       handleClose();

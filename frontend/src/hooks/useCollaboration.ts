@@ -32,6 +32,7 @@ export function useCollaboration({
   onAnnotationDeleted,
 }: UseCollaborationProps) {
   const token = useAppSelector((state) => state.auth.token);
+  const user = useAppSelector((state) => state.auth.user);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [activeUsers, setActiveUsers] = useState<Map<string, CollaborationUser>>(new Map());
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,8 +45,11 @@ export function useCollaboration({
       return;
     }
 
+    const userId = user?.id || 'anonymous';
+    const userName = user?.name || user?.email || 'Anonymous User';
+
     console.log('Connecting to collaboration WebSocket for scene:', sceneId);
-    websocketService.connect(sceneId, token);
+    websocketService.connect(sceneId, token, userId, userName);
 
     // Subscribe to status changes
     const unsubscribeStatus = websocketService.onStatusChange((status) => {
@@ -59,13 +63,13 @@ export function useCollaboration({
       websocketService.disconnect();
       setActiveUsers(new Map());
     };
-  }, [enabled, sceneId, token]);
+  }, [enabled, sceneId, token, user]);
 
-  // Handle user:joined event
+  // Handle user_joined event
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('user:joined', (data: any) => {
+    const unsubscribe = websocketService.on('user_joined', (data: any) => {
       console.log('User joined:', data);
       setActiveUsers((prev) => {
         const next = new Map(prev);
@@ -84,11 +88,11 @@ export function useCollaboration({
     return unsubscribe;
   }, [enabled]);
 
-  // Handle user:left event
+  // Handle user_left event
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('user:left', (data: any) => {
+    const unsubscribe = websocketService.on('user_left', (data: any) => {
       console.log('User left:', data);
       setActiveUsers((prev) => {
         const next = new Map(prev);
@@ -104,7 +108,7 @@ export function useCollaboration({
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('cursor:move', (data: any) => {
+    const unsubscribe = websocketService.on('cursor_update', (data: any) => {
       setActiveUsers((prev) => {
         const user = prev.get(data.user_id);
         if (!user) return prev;
@@ -127,7 +131,7 @@ export function useCollaboration({
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('annotation:created', (data: any) => {
+    const unsubscribe = websocketService.on('annotation_created', (data: any) => {
       console.log('Annotation created by another user:', data);
       onAnnotationCreated?.(data.annotation);
     });
@@ -139,7 +143,7 @@ export function useCollaboration({
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('annotation:updated', (data: any) => {
+    const unsubscribe = websocketService.on('annotation_updated', (data: any) => {
       console.log('Annotation updated by another user:', data);
       onAnnotationUpdated?.(data.annotation_id, data.changes);
     });
@@ -151,7 +155,7 @@ export function useCollaboration({
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = websocketService.on('annotation:deleted', (data: any) => {
+    const unsubscribe = websocketService.on('annotation_deleted', (data: any) => {
       console.log('Annotation deleted by another user:', data);
       onAnnotationDeleted?.(data.annotation_id);
     });

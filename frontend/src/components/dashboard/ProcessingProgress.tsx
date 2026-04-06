@@ -39,8 +39,11 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
 
     if (latestJob.status === 'failed') {
       const errorMsg = latestJob.error || 'Processing failed';
-      setError(errorMsg);
-      onError?.(errorMsg);
+      // Only set error and call onError once
+      if (error !== errorMsg) {
+        setError(errorMsg);
+        onError?.(errorMsg);
+      }
       return;
     }
 
@@ -59,7 +62,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     if (latestJob.progress_percent !== undefined) {
       setProgress(latestJob.progress_percent);
     }
-  }, [jobs, onComplete, onError]);
+  }, [jobs, onComplete, onError, error]);
 
   if (isLoading) {
     return (

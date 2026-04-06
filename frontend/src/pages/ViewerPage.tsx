@@ -3,9 +3,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { GaussianViewer } from '../components/GaussianViewer';
 import { ModelViewer } from '../components/ModelViewer';
-import { ViewerToolbar, AnnotationToolbar, AnnotationPreview } from '../components/viewer';
+import { AnnotationPreview } from '../components/viewer';
 import { CollaborationOverlay } from '../components/CollaborationOverlay';
-import { CollaborationPanel } from '../components/collaboration/CollaborationPanel';
 import { ShareDialog } from '../components/sharing/ShareDialog';
 import { useAnnotationCreation } from '../hooks/useAnnotationCreation';
 import { useCollaboration } from '../hooks/useCollaboration';
@@ -38,12 +37,10 @@ export function ViewerPage() {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [annotationColor, setAnnotationColor] = useState<string>('#FF6B6B');
   
-  // Collaboration panel state
-  const [showCollaborationPanel, setShowCollaborationPanel] = useState(true);
-  
   // Refs to access viewer internals
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.Camera | null>(null);
+  const controlsRef = useRef<any | null>(null);
   const domElementRef = useRef<HTMLElement | null>(null);
 
   // Collaboration hook
@@ -67,13 +64,21 @@ export function ViewerPage() {
     },
   });
 
-  // Connect WebSocket on mount
+  // Connect WebSocket on mount (non-blocking - collaboration is optional)
   useEffect(() => {
     if (sceneId && token) {
-      websocketService.connect(sceneId, token);
+      try {
+        websocketService.connect(sceneId, token);
+      } catch (error) {
+        console.warn('WebSocket connection failed (collaboration disabled):', error);
+      }
       
       return () => {
-        websocketService.disconnect();
+        try {
+          websocketService.disconnect();
+        } catch (error) {
+          console.warn('WebSocket disconnect error:', error);
+        }
       };
     }
   }, [sceneId, token]);
@@ -113,21 +118,79 @@ export function ViewerPage() {
 
   // Camera control handlers
   const handleResetCamera = useCallback(() => {
-    // This would call a method on the GaussianViewer to reset camera
-    console.log('Reset camera');
-    // viewerRef.current?.resetCamera();
+    if (cameraRef.current && sceneRef.current) {
+      // Reset camera to default position
+      cameraRef.current.position.set(0, 5, 10);
+      cameraRef.current.lookAt(0, 0, 0);
+      
+      // Update controls target if available
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.update();
+      }
+    }
   }, []);
 
   const handleFitToView = useCallback(() => {
-    // This would call a method on the GaussianViewer to fit scene to view
-    console.log('Fit to view');
-    // viewerRef.current?.fitToView();
+    if (cameraRef.current && sceneRef.current) {
+      // Calculate bounding box of scene
+      const box = new THREE.Box3().setFromObject(sceneRef.current);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      
+      // Calculate camera distance to fit scene
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fov = (cameraRef.current as THREE.PerspectiveCamera).fov * (Math.PI / 180);
+      let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+      cameraZ *= 1.5; // Add some padding
+      
+      cameraRef.current.position.set(center.x, center.y, center.z + cameraZ);
+      cameraRef.current.lookAt(center);
+      
+      // Update controls target if available
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(center);
+        controlsRef.current.update();
+      }
+    }
   }, []);
 
   const handlePresetView = useCallback((view: 'top' | 'front' | 'side' | 'isometric') => {
-    // This would call a method on the GaussianViewer to set preset view
-    console.log('Preset view:', view);
-    // viewerRef.current?.setPresetView(view);
+    if (cameraRef.current && sceneRef.current) {
+      // Calculate bounding box to get proper distance
+      const box = new THREE.Box3().setFromObject(sceneRef.current);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const distance = maxDim * 2; // Distance based on scene size
+      
+      switch (view) {
+        case 'top':
+          cameraRef.current.position.set(center.x, center.y + distance, center.z);
+          break;
+        case 'front':
+          cameraRef.current.position.set(center.x, center.y, center.z + distance);
+          break;
+        case 'side':
+          cameraRef.current.position.set(center.x + distance, center.y, center.z);
+          break;
+        case 'isometric':
+          cameraRef.current.position.set(
+            center.x + distance * 0.7,
+            center.y + distance * 0.7,
+            center.z + distance * 0.7
+          );
+          break;
+      }
+      
+      cameraRef.current.lookAt(center);
+      
+      // Update controls target if available
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(center);
+        controlsRef.current.update();
+      }
+    }
   }, []);
 
   // Rendering mode toggle
@@ -191,10 +254,11 @@ export function ViewerPage() {
   }, []);
 
   // Handle scene ready callback
-  const handleSceneReady = useCallback((scene: THREE.Scene, camera: THREE.Camera, domElement: HTMLElement) => {
+  const handleSceneReady = useCallback((scene: THREE.Scene, camera: THREE.Camera, domElement: HTMLElement, controls?: any) => {
     sceneRef.current = scene;
     cameraRef.current = camera;
     domElementRef.current = domElement;
+    controlsRef.current = controls;
   }, []);
 
   // Handle camera movement for cursor broadcasting
@@ -225,30 +289,65 @@ export function ViewerPage() {
       </button>
 
       {/* Render appropriate viewer based on file type */}
-      {scene && (scene.format === 'glb' || scene.format === 'gltf' || scene.format === 'obj' || scene.format === 'ply') ? (
-        <ModelViewer
-          sceneId={sceneId}
-          modelUrl={scene.fileUrl || `/api/v1/scenes/${sceneId}/download`}
-          modelType={scene.format as 'glb' | 'gltf' | 'obj' | 'ply' | 'splat'}
-          onError={(error) => console.error('Viewer error:', error)}
-          onLoadProgress={(progress) => console.log('Load progress:', progress)}
-        />
-      ) : (
-        <GaussianViewer 
-          sceneId={sceneId}
-          onError={(error) => console.error('Viewer error:', error)}
-          onLoadProgress={(progress) => console.log('Load progress:', progress)}
-          onFpsUpdate={handleFpsUpdate}
-          enableBIMVisualization={true}
-          enable2DOverlays={true}
-          enableAnimations={true}
-          onSceneReady={handleSceneReady}
-          onCanvasClick={handleAnnotationClick}
-          onCanvasDoubleClick={handleAnnotationDoubleClick}
-          onCanvasMouseMove={handleAnnotationMouseMove}
-          onCameraMove={handleCameraMove}
-        />
-      )}
+      {(() => {
+        // Determine format
+        // For imported models, use sourceFormat
+        // For videos, default to 'splat' since they're converted to Gaussian splats
+        let format = scene?.sourceFormat || scene?.format || (scene?.sourceType === 'video' ? 'splat' : undefined);
+        
+        // Remove leading dot if present
+        if (format && format.startsWith('.')) {
+          format = format.substring(1);
+        }
+        
+        const isImportedModel = scene?.sourceType === 'import';
+        const isModelFormat = format && ['glb', 'gltf', 'obj', 'ply', 'fbx', 'dae', 'stl'].includes(format.toLowerCase());
+        
+        console.log('Scene format:', format, 'isModelFormat:', isModelFormat, 'sourceType:', scene?.sourceType, 'isImportedModel:', isImportedModel);
+        
+        // Use ModelViewer for imported 3D models
+        return (isModelFormat || isImportedModel) ? (
+          <>
+            {console.log('Rendering ModelViewer for format:', format, 'URL:', scene?.fileUrl, 'Scene:', scene)}
+            <ModelViewer
+              sceneId={sceneId}
+              token={token}
+              modelUrl={scene?.fileUrl || `/api/v1/scenes/${sceneId}/download`}
+              modelType={(format?.toLowerCase() || 'glb') as 'glb' | 'gltf' | 'obj' | 'ply' | 'splat'}
+              onError={(error) => console.error('Viewer error:', error)}
+              onLoadProgress={(progress) => console.log('Load progress:', progress)}
+              onSceneReady={handleSceneReady}
+              annotationMode={annotationMode}
+              selectedAnnotationType={selectedAnnotationType}
+              annotationColor={annotationColor}
+              onAnnotationModeChange={handleAnnotationModeChange}
+              onAnnotationTypeSelect={handleAnnotationTypeSelect}
+              onAnnotationColorChange={handleAnnotationColorChange}
+              connectionStatus={connectionStatus}
+              activeUsers={activeUsers}
+            />
+          </>
+        ) : (
+          <>
+            {console.log('Rendering GaussianViewer for format:', format)}
+            <GaussianViewer 
+              sceneId={sceneId}
+              token={token}
+              onError={(error) => console.error('Viewer error:', error)}
+              onLoadProgress={(progress) => console.log('Load progress:', progress)}
+              onFpsUpdate={handleFpsUpdate}
+              enableBIMVisualization={true}
+              enable2DOverlays={true}
+              enableAnimations={true}
+              onSceneReady={handleSceneReady}
+              onCanvasClick={handleAnnotationClick}
+              onCanvasDoubleClick={handleAnnotationDoubleClick}
+              onCanvasMouseMove={handleAnnotationMouseMove}
+              onCameraMove={handleCameraMove}
+            />
+          </>
+        );
+      })()}
       
       {/* Collaboration overlay showing other users' cursors */}
       <CollaborationOverlay
@@ -257,34 +356,6 @@ export function ViewerPage() {
         camera={cameraRef.current}
       />
       
-      <ViewerToolbar
-        onResetCamera={handleResetCamera}
-        onFitToView={handleFitToView}
-        onPresetView={handlePresetView}
-        renderingMode={renderingMode}
-        onRenderingModeToggle={handleRenderingModeToggle}
-        fps={fps}
-        showFps={showFps}
-        onToggleFps={handleToggleFps}
-        showCoordinates={showCoordinates}
-        onToggleCoordinates={handleToggleCoordinates}
-        cameraPosition={[0, 0, 0]}
-        onOpenSettings={handleOpenSettings}
-      />
-
-      <AnnotationToolbar
-        mode={annotationMode}
-        onModeChange={handleAnnotationModeChange}
-        selectedType={selectedAnnotationType}
-        onTypeSelect={handleAnnotationTypeSelect}
-        selectedAnnotationId={selectedAnnotationId}
-        onEdit={handleAnnotationEdit}
-        onDelete={handleAnnotationDelete}
-        selectedColor={annotationColor}
-        onColorChange={handleAnnotationColorChange}
-        pointsCollected={points.length}
-      />
-
       {/* Annotation preview for multi-point annotations */}
       <AnnotationPreview
         scene={sceneRef.current}
@@ -293,29 +364,6 @@ export function ViewerPage() {
         type={selectedAnnotationType === 'line' || selectedAnnotationType === 'area' ? selectedAnnotationType : null}
         color={annotationColor}
       />
-
-      {/* Collaboration panel */}
-      {showCollaborationPanel && (
-        <CollaborationPanel
-          users={activeUsers}
-          connectionStatus={connectionStatus}
-          onClose={() => setShowCollaborationPanel(false)}
-        />
-      )}
-
-      {/* Toggle collaboration panel button */}
-      {!showCollaborationPanel && (
-        <button
-          onClick={() => setShowCollaborationPanel(true)}
-          className="absolute top-20 right-4 bg-surface-elevated/95 backdrop-blur-sm border border-border-subtle rounded-lg p-3 shadow-lg hover:bg-surface-elevated transition-colors z-10"
-          aria-label="Show collaboration panel"
-          title="Show collaboration panel"
-        >
-          <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        </button>
-      )}
 
       {/* Share Dialog */}
       {scene && (

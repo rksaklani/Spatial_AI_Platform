@@ -33,9 +33,8 @@ async def create_guided_tour(
     Requirements: 15.1, 15.2, 15.3
     """
     # Validate scene exists and user has access
-    scene_oid = ObjectId(scene_id)
     scene = await db.scenes.find_one({
-        "_id": scene_oid,
+        "_id": scene_id,
         "organization_id": current_user.organization_id
     })
     
@@ -56,7 +55,7 @@ async def create_guided_tour(
     
     # Create tour document
     tour_doc = GuidedTourInDB(
-        scene_id=scene_oid,
+        scene_id=scene_id,
         user_id=current_user.id,
         name=tour_data.name,
         camera_path=tour_data.camera_path,
@@ -94,9 +93,8 @@ async def list_guided_tours(
     Returns tours created by any user with access to the scene.
     """
     # Validate scene exists and user has access
-    scene_oid = ObjectId(scene_id)
     scene = await db.scenes.find_one({
-        "_id": scene_oid,
+        "_id": scene_id,
         "organization_id": current_user.organization_id
     })
     
@@ -107,7 +105,7 @@ async def list_guided_tours(
         )
     
     # Find all tours for this scene
-    cursor = db.guided_tours.find({"scene_id": scene_oid})
+    cursor = db.guided_tours.find({"scene_id": scene_id})
     tours = await cursor.to_list(length=100)
     
     # Convert to response format
@@ -139,9 +137,8 @@ async def get_guided_tour(
     Returns tour details including camera path and narration.
     """
     # Validate scene exists and user has access
-    scene_oid = ObjectId(scene_id)
     scene = await db.scenes.find_one({
-        "_id": scene_oid,
+        "_id": scene_id,
         "organization_id": current_user.organization_id
     })
     
@@ -155,7 +152,7 @@ async def get_guided_tour(
     tour_oid = ObjectId(tour_id)
     tour = await db.guided_tours.find_one({
         "_id": tour_oid,
-        "scene_id": scene_oid
+        "scene_id": scene_id
     })
     
     if not tour:
@@ -190,9 +187,8 @@ async def delete_guided_tour(
     Only the tour creator or organization admin can delete tours.
     """
     # Validate scene exists and user has access
-    scene_oid = ObjectId(scene_id)
     scene = await db.scenes.find_one({
-        "_id": scene_oid,
+        "_id": scene_id,
         "organization_id": current_user.organization_id
     })
     
@@ -206,7 +202,7 @@ async def delete_guided_tour(
     tour_oid = ObjectId(tour_id)
     tour = await db.guided_tours.find_one({
         "_id": tour_oid,
-        "scene_id": scene_oid
+        "scene_id": scene_id
     })
     
     if not tour:
@@ -271,7 +267,7 @@ async def list_tours_by_share_token(
     scene_id = share_token["scene_id"]
     
     # Find all tours for this scene
-    cursor = db.guided_tours.find({"scene_id": ObjectId(scene_id)})
+    cursor = db.guided_tours.find({"scene_id": scene_id})
     tours = await cursor.to_list(length=100)
     
     # Convert to response format
@@ -333,7 +329,7 @@ async def get_tour_by_share_token(
     tour_oid = ObjectId(tour_id)
     tour = await db.guided_tours.find_one({
         "_id": tour_oid,
-        "scene_id": ObjectId(scene_id)
+        "scene_id": scene_id
     })
     
     if not tour:

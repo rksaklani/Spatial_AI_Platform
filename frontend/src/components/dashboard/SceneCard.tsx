@@ -39,6 +39,10 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     });
   };
 
+  const isViewable = scene.status === 'ready' || scene.status === 'completed';
+  const isProcessing = ['uploaded', 'processing', 'extracting_frames', 'estimating_poses', 'generating_depth', 'reconstructing', 'tiling'].includes(scene.status);
+  const isFailed = scene.status === 'failed';
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDelete) {
@@ -61,7 +65,10 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   };
 
   return (
-    <Card onClick={onClick} className="overflow-hidden group">
+    <Card 
+      onClick={onClick} 
+      className={`overflow-hidden group ${!isViewable ? 'cursor-default' : ''}`}
+    >
       {/* Thumbnail */}
       <div className="relative h-48 bg-hover-bg overflow-hidden">
         {/* Placeholder for thumbnail - will be replaced with actual thumbnail URL */}
@@ -87,6 +94,19 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           </svg>
         </div>
         
+        {/* Delete icon overlay - top left */}
+        {onDelete && (
+          <button
+            onClick={handleDelete}
+            className="absolute top-3 left-3 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 z-10"
+            title="Delete scene"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        )}
+        
         {/* Status badge overlay */}
         <div className="absolute top-3 right-3">
           <StatusBadge status={scene.status} />
@@ -95,7 +115,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-center justify-center">
           <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            View Scene
+            {isViewable ? 'View Scene' : isProcessing ? 'Processing...' : 'Failed'}
           </span>
         </div>
       </div>

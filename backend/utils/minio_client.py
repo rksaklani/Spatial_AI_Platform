@@ -35,7 +35,7 @@ class MinIOClient:
         """
         self.endpoint = endpoint or os.getenv("MINIO_ENDPOINT", "localhost:9000")
         self.access_key = access_key or os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        self.secret_key = secret_key or os.getenv("MINIO_SECRET_KEY", "minioadmin123")
+        self.secret_key = secret_key or os.getenv("MINIO_SECRET_KEY", "minioadmin")
         self.secure = secure or os.getenv("MINIO_SECURE", "false").lower() == "true"
         
         self.client = Minio(

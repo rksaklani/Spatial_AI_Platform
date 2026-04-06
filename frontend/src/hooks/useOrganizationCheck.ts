@@ -10,13 +10,15 @@ export const useOrganizationCheck = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const checkOrganization = useCallback((onSuccess: () => void) => {
-    if (!currentOrg) {
+    if (!currentOrg && !isLoading) {
       setShowCreateDialog(true);
       return false;
     }
-    onSuccess();
+    if (currentOrg) {
+      onSuccess();
+    }
     return true;
-  }, [currentOrg]);
+  }, [currentOrg, isLoading]);
 
   return {
     currentOrg,

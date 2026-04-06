@@ -1,4 +1,4 @@
-wha/**
+/**
  * API Client Utility
  * Provides authenticated fetch wrapper that uses correct base URL and token from Redux store
  */

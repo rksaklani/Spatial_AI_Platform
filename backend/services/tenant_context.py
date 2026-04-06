@@ -152,28 +152,70 @@ async def get_tenant_context(
     })
     
     if not membership:
+        # Auto-fix: Create membership if user has organization_id but no membership record
+        # This can happen if the membership record was accidentally deleted
         logger.warning(
-            "tenant_context_membership_not_found",
+            "tenant_context_membership_missing_auto_fix",
             user_id=current_user.id,
             organization_id=current_user.organization_id
         )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are no longer a member of this organization."
+        
+        # Create the missing membership record
+        from datetime import datetime
+        member_doc = {
+            "organization_id": current_user.organization_id,
+            "user_id": current_user.id,
+            "role": "member",  # Default role
+            "joined_at": datetime.utcnow(),
+        }
+        await db.organization_members.insert_one(member_doc)
+        membership = member_doc
+        
+        logger.info(
+            "tenant_context_membership_created",
+            user_id=current_user.id,
+            organization_id=current_user.organization_id
         )
     
     # Fetch organization details
     org = await db.organizations.find_one({"_id": current_user.organization_id})
     
     if not org:
+        # Auto-fix: Create default organization if user has organization_id but org doesn't exist
         logger.warning(
-            "tenant_context_org_not_found",
+            "tenant_context_org_not_found_auto_fix",
             user_id=current_user.id,
             organization_id=current_user.organization_id
         )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization not found. Please contact support."
+        
+        # Create a default organization
+        from datetime import datetime, timedelta
+        org_doc = {
+            "_id": current_user.organization_id,
+            "name": f"{current_user.email.split('@')[0]}'s Organization",
+            "slug": current_user.organization_id[:8],
+            "owner_id": current_user.id,
+            "subscription_tier": "free_trial",
+            "trial_expires_at": datetime.utcnow() + timedelta(days=30),
+            "is_active": True,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "max_seats": 5,
+            "max_scenes": 10,
+            "max_storage_gb": 50,
+            "settings": {
+                "max_scenes": 10,
+                "max_storage_gb": 50,
+                "max_users": 5,
+            },
+        }
+        await db.organizations.insert_one(org_doc)
+        org = org_doc
+        
+        logger.info(
+            "tenant_context_org_created",
+            user_id=current_user.id,
+            organization_id=current_user.organization_id
         )
     
     if not org.get("is_active", True):

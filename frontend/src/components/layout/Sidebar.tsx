@@ -88,14 +88,14 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-secondary-bg/90 backdrop-blur-md border-r border-white/10 shadow-glass transition-all duration-300 z-30 flex flex-col ${
+      className={`fixed left-0 top-16 h-[calc(100vh-4rem)] bg-secondary-bg/90 backdrop-blur-md border-r border-white/10 shadow-glass transition-all duration-300 z-30 flex flex-col ${
         isCollapsed ? 'w-16' : 'w-64'
       } hidden md:flex`}
       role="navigation"
       aria-label="Main navigation"
     >
       {/* Logo Section with Collapse Toggle */}
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
+      <div className="p-4 pt-6 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="w-10 h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow flex-shrink-0">
             <span className="text-white font-bold text-xl">S</span>

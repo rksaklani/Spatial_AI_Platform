@@ -22,13 +22,14 @@ import type { CameraConfiguration } from '../types/camera.types';
 
 interface GaussianViewerProps {
   sceneId: string;
+  token?: string | null;
   onError?: (error: Error) => void;
   onLoadProgress?: (progress: number) => void;
   onFpsUpdate?: (fps: number) => void;
   enableBIMVisualization?: boolean;
   enable2DOverlays?: boolean;
   enableAnimations?: boolean;
-  onSceneReady?: (scene: THREE.Scene, camera: THREE.Camera, domElement: HTMLElement) => void;
+  onSceneReady?: (scene: THREE.Scene, camera: THREE.Camera, domElement: HTMLElement, controls?: any) => void;
   onCanvasClick?: (event: MouseEvent, domElement: HTMLElement) => void;
   onCanvasDoubleClick?: (event: MouseEvent, domElement: HTMLElement) => void;
   onCanvasMouseMove?: (event: MouseEvent, domElement: HTMLElement) => void;
@@ -77,6 +78,7 @@ interface Overlay2D {
 
 export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   sceneId,
+  token,
   onError,
   onLoadProgress,
   onFpsUpdate,
@@ -121,6 +123,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   const [selectedBIMElement, setSelectedBIMElement] = useState<string | null>(null);
   const [cameraConfig, setCameraConfig] = useState<CameraConfiguration | null>(null);
   const [approachingBoundary, setApproachingBoundary] = useState(false);
+  const [noDataMessage, setNoDataMessage] = useState<string | null>(null);
 
   // Detect WebGPU support and browser info
   const detectRendererType = useCallback(async (): Promise<'webgpu' | 'webgl2' | 'webgl'> => {
@@ -251,8 +254,8 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
     scene.add(gridHelper);
 
-    // Add axes helper
-    const axesHelper = new THREE.AxesHelper(5);
+    // Add axes helper (larger size for better visibility)
+    const axesHelper = new THREE.AxesHelper(50);
     scene.add(axesHelper);
 
     // Handle window resize
@@ -357,7 +360,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       
       // Notify parent that scene is ready
       if (onSceneReady) {
-        onSceneReady(scene, camera, container);
+        onSceneReady(scene, camera, container, controls);
       }
     };
 
@@ -395,10 +398,15 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
 
   // Load camera configuration from API
   const loadCameraConfiguration = useCallback(async () => {
+    if (!token) {
+      console.warn('No authentication token available');
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/v1/scenes/${sceneId}/camera-config`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -419,11 +427,11 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     } catch (error) {
       console.error('Failed to load camera configuration:', error);
     }
-  }, [sceneId]);
+  }, [sceneId, token]);
 
   // Request tile update based on camera position using TileManager
   const requestTileUpdate = useCallback(async () => {
-    if (!cameraRef.current || !controlsRef.current) return;
+    if (!cameraRef.current || !controlsRef.current || !token) return;
 
     const camera = cameraRef.current;
     const tileManager = tileManagerRef.current;
@@ -439,12 +447,18 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify(request),
           });
 
           if (!response.ok) {
+            // If 500 error, scene likely has no tiles - don't throw, just return empty
+            if (response.status === 500) {
+              console.warn('Scene has no tiles available (processing may have failed)');
+              setIsLoading(false);
+              return { tiles: [] };
+            }
             throw new Error(`Failed to fetch tiles: ${response.statusText}`);
           }
 
@@ -455,12 +469,16 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       // Load tiles progressively by priority
       if (tiles.length > 0) {
         loadTilesProgressively(tiles);
+      } else {
+        // No tiles available
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Failed to request tiles:', error);
-      onError?.(error as Error);
+      setIsLoading(false);
+      // Don't call onError for tile loading failures - just show the no data message
     }
-  }, [sceneId, onError]);
+  }, [sceneId, token, onError]);
 
   // Parse PLY file to Three.js geometry (robust implementation)
   const parsePLYToGeometry = useCallback((arrayBuffer: ArrayBuffer): THREE.BufferGeometry => {
@@ -668,6 +686,11 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   const loadTile = useCallback(async (tile: TileData): Promise<void> => {
     const tileManager = tileManagerRef.current;
     
+    if (!token) {
+      console.warn('No authentication token available for tile loading');
+      return;
+    }
+    
     // Check if already loading
     if (tileManager.isTileLoading(tile.tile_id)) {
       return;
@@ -681,7 +704,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       // Download tile PLY file
       const response = await fetch(`/api/v1/scenes/${sceneId}/tiles/${tile.tile_id}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -721,7 +744,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       console.error(`Failed to load tile ${tile.tile_id}:`, error);
       throw error;
     }
-  }, [sceneId, parsePLYToGeometry, createGaussianMaterial]);
+  }, [sceneId, token, parsePLYToGeometry, createGaussianMaterial]);
 
   // Load tiles progressively
   const loadTilesProgressively = useCallback(async (tiles: TileData[]) => {
@@ -1064,6 +1087,44 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
     }
   }, [isLoading, loadBIMElements, load2DOverlays]);
 
+  // Zoom controls
+  const handleZoomIn = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    
+    // Move camera closer to target
+    const direction = new THREE.Vector3();
+    direction.subVectors(camera.position, controls.target);
+    direction.multiplyScalar(0.8); // Zoom in by 20%
+    camera.position.copy(controls.target).add(direction);
+    controls.update();
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    
+    // Move camera away from target
+    const direction = new THREE.Vector3();
+    direction.subVectors(camera.position, controls.target);
+    direction.multiplyScalar(1.25); // Zoom out by 25%
+    camera.position.copy(controls.target).add(direction);
+    controls.update();
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    
+    // Reset to initial position
+    camera.position.set(0, 5, 10);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }, []);
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
@@ -1088,6 +1149,153 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         <div>Gaussians: {visibleGaussians.toLocaleString()}</div>
         <div>Tiles: {loadedTilesRef.current.size}</div>
         <div>Status: {isLoading ? 'Loading...' : 'Ready'}</div>
+      </div>
+
+      {/* No data message */}
+      {!isLoading && visibleGaussians === 0 && loadedTilesRef.current.size === 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(0, 0, 0, 0.9)',
+            color: 'white',
+            padding: '30px',
+            borderRadius: '10px',
+            textAlign: 'center',
+            maxWidth: '500px',
+          }}
+        >
+          <div style={{ fontSize: '48px', marginBottom: '20px' }}>📦</div>
+          <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>No 3D Data Available</h3>
+          <p style={{ margin: '0 0 20px 0', color: '#ccc', fontSize: '14px' }}>
+            This scene is marked as ready, but no 3D data was found. This could mean:
+          </p>
+          <div style={{ fontSize: '12px', color: '#999', marginTop: '15px', textAlign: 'left' }}>
+            <p style={{ margin: '5px 0' }}>• Processing completed but didn't generate Gaussian splats</p>
+            <p style={{ margin: '5px 0' }}>• The video processing pipeline encountered an issue</p>
+            <p style={{ margin: '5px 0' }}>• Tiles weren't uploaded to storage correctly</p>
+            <p style={{ margin: '5px 0' }}>• The scene needs to be reprocessed</p>
+          </div>
+          <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255, 152, 0, 0.2)', borderRadius: '8px', border: '1px solid rgba(255, 152, 0, 0.3)' }}>
+            <p style={{ margin: '0', fontSize: '13px', color: '#ff9800' }}>
+              💡 <strong>Solution:</strong> Go back to the dashboard and try uploading the video again. Make sure the Celery workers are running.
+            </p>
+          </div>
+          <button
+            onClick={() => window.history.back()}
+            style={{
+              marginTop: '20px',
+              padding: '10px 20px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            ← Back to Dashboard
+          </button>
+        </div>
+      )}
+
+      {/* Zoom controls */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          left: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
+        <button
+          onClick={handleZoomIn}
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '8px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            fontSize: '24px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.9)';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.7)';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          title="Zoom In"
+        >
+          +
+        </button>
+        <button
+          onClick={handleZoomOut}
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '8px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            fontSize: '24px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.9)';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.7)';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          title="Zoom Out"
+        >
+          −
+        </button>
+        <button
+          onClick={handleResetView}
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '8px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.9)';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.7)';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          title="Reset View"
+        >
+          ⟲
+        </button>
       </div>
 
       {/* Boundary warning */}

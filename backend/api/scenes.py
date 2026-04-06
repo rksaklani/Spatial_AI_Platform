@@ -276,6 +276,7 @@ async def upload_video(
         "name": scene_name,
         "description": description,
         "source_type": SceneType.VIDEO.value,
+        "source_format": ext.lstrip('.'),  # Store format without the dot (e.g., 'mp4', 'mov')
         "original_filename": file.filename,
         "file_size_bytes": file_size,
         "mime_type": file.content_type or "video/mp4",
@@ -396,16 +397,79 @@ async def get_scene(
                 detail="Access denied to this scene"
             )
     
-    # Add file_url for imported 3D files
-    if scene.get("source_type") == "import" and scene.get("source_path"):
-        minio = get_minio_client()
-        scene["file_url"] = minio.presigned_get_object(
-            "scenes",
-            scene["source_path"],
-            expires=timedelta(hours=1)
-        )
+    # Add file_url for imported 3D files - use download endpoint instead of presigned URL
+    # This avoids CORS issues with MinIO
+    if scene.get("source_type") == "import":
+        file_path = scene.get("storage_path") or scene.get("source_path")
+        if file_path:
+            # Use the download endpoint which will handle the MinIO redirect
+            scene["file_url"] = f"/api/v1/scenes/{scene_id}/download"
     
     return SceneResponse(**scene)
+
+
+@router.get("/{scene_id}/download")
+async def download_scene_file(
+    scene_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Download the 3D model file for an imported scene.
+    Returns a redirect to the MinIO presigned URL.
+    """
+    db = await get_db()
+    
+    scene = await db.scenes.find_one({"_id": scene_id})
+    
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scene not found"
+        )
+    
+    # Check organization access
+    if scene["organization_id"] != current_user.organization_id:
+        if not scene.get("is_public", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this scene"
+            )
+    
+    # Only works for imported scenes
+    if scene.get("source_type") != "import":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Download only available for imported 3D models"
+        )
+    
+    # Check for storage_path (new field) or source_path (old field)
+    file_path = scene.get("storage_path") or scene.get("source_path")
+    if not file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source file not found"
+        )
+    
+    # Generate presigned URL and redirect
+    minio = get_minio_client()
+    try:
+        # Try imports bucket first (for new imports), then scenes bucket (for old imports)
+        bucket = "imports" if scene.get("storage_path") else "scenes"
+        presigned_url = minio.client.presigned_get_object(
+            bucket,
+            file_path,
+            expires=timedelta(hours=1)
+        )
+        
+        # Return redirect response
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=presigned_url)
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate download URL"
+        )
 
 
 @router.patch("/{scene_id}", response_model=SceneResponse)

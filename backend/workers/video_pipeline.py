@@ -302,7 +302,7 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         logger.error(f"Pipeline failed for scene {scene_id}: {error_msg}")
         
         update_job_progress(job_id, "failed", 0, "failed", error=error_msg)
-        update_scene_status(scene_id, "failed", "Processing failed", error=error_msg)
+        update_scene_status(scene_id, "failed", message="Processing failed: " + error_msg)
         
         # Re-raise for Celery retry logic
         raise
@@ -318,20 +318,34 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
 
 
 def download_video(scene_id: str, organization_id: str, source_path: str, work_dir: str) -> str:
-    """Download video from MinIO to local filesystem."""
+    """Download video from storage (MinIO or local filesystem) to working directory."""
     from utils.minio_client import get_minio_client
-    
-    minio = get_minio_client()
+    from pathlib import Path
     
     # Extract extension from source path
     ext = os.path.splitext(source_path)[1] or ".mp4"
     local_path = os.path.join(work_dir, f"original{ext}")
     
-    # Download from MinIO
-    object_name = f"{organization_id}/{scene_id}/original{ext}"
-    minio.download_file("videos", object_name, local_path)
+    # Check if source_path is a local file path (starts with storage/)
+    if source_path.startswith("storage/") or os.path.isabs(source_path):
+        # Video is stored locally, just copy it
+        if os.path.exists(source_path):
+            shutil.copy2(source_path, local_path)
+            logger.info(f"Copied video from local storage: {source_path}")
+            return local_path
+        else:
+            raise FileNotFoundError(f"Local video file not found: {source_path}")
     
-    return local_path
+    # Otherwise, download from MinIO
+    try:
+        minio = get_minio_client()
+        object_name = f"{organization_id}/{scene_id}/original{ext}"
+        minio.download_file("videos", object_name, local_path)
+        logger.info(f"Downloaded video from MinIO: {object_name}")
+        return local_path
+    except Exception as e:
+        logger.error(f"Failed to download from MinIO: {e}")
+        raise
 
 
 def extract_frames(video_path: str, output_dir: str, fps: int = 3) -> Dict[str, Any]:
@@ -490,7 +504,7 @@ def filter_frames(frames_dir: str) -> Dict[str, Any]:
     avg_motion = np.mean([f["motion_score"] for f in selected_frames]) if selected_frames else 0.0
     reduction_percent = (1 - len(selected_frames) / len(frame_files)) * 100 if frame_files else 0
     
-    logger.info(f"Frame filtering: {len(selected_frames)}/{len(frame_files)} frames kept ({reduction_percent:.1f}% reduction)")
+    logger.info(f"Frame filtering: {len(selected_frames)}/{len(frame_files)} frames kept ({reduction_percent:.1f}%% reduction)")
     logger.info(f"Average motion score: {avg_motion:.2f}")
     
     return {
@@ -644,29 +658,46 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
         shutil.copy2(src, dst)
     
     try:
-        # Feature extraction
-        subprocess.run([
+        # Feature extraction with more lenient settings
+        logger.info("Running COLMAP feature extraction...")
+        result = subprocess.run([
             "colmap", "feature_extractor",
             "--database_path", database_path,
             "--image_path", images_dir,
             "--ImageReader.single_camera", "1",
             "--SiftExtraction.use_gpu", "0",
-        ], check=True, capture_output=True)
+            "--SiftExtraction.max_num_features", "8192",  # More features
+            "--SiftExtraction.first_octave", "-1",  # Detect smaller features
+        ], check=True, capture_output=True, text=True)
+        logger.info(f"Feature extraction completed: {result.stdout}")
         
-        # Feature matching
-        subprocess.run([
+        # Feature matching with more lenient settings
+        logger.info("Running COLMAP feature matching...")
+        result = subprocess.run([
             "colmap", "exhaustive_matcher",
             "--database_path", database_path,
             "--SiftMatching.use_gpu", "0",
-        ], check=True, capture_output=True)
+            "--SiftMatching.max_ratio", "0.9",  # More lenient matching (default 0.8)
+            "--SiftMatching.max_distance", "0.9",  # More lenient distance
+            "--SiftMatching.cross_check", "0",  # Disable cross-check for more matches
+        ], check=True, capture_output=True, text=True)
+        logger.info(f"Feature matching completed: {result.stdout}")
         
-        # Sparse reconstruction (Mapper)
-        subprocess.run([
+        # Sparse reconstruction (Mapper) with more lenient settings
+        logger.info("Running COLMAP mapper...")
+        result = subprocess.run([
             "colmap", "mapper",
             "--database_path", database_path,
             "--image_path", images_dir,
             "--output_path", sparse_dir,
-        ], check=True, capture_output=True)
+            "--Mapper.ba_refine_focal_length", "0",  # Don't refine focal length
+            "--Mapper.ba_refine_extra_params", "0",  # Don't refine distortion
+            "--Mapper.min_num_matches", "5",  # Very low threshold (default 15)
+            "--Mapper.init_min_num_inliers", "25",  # Very low threshold (default 100)
+            "--Mapper.init_max_error", "8",  # More lenient error (default 4)
+            "--Mapper.abs_pose_max_error", "20",  # More lenient error (default 12)
+        ], check=True, capture_output=True, text=True)
+        logger.info(f"Mapper completed: {result.stdout}")
         
         # Count cameras and points from reconstruction
         model_dir = os.path.join(sparse_dir, "0")
@@ -696,9 +727,14 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
             }
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logger.warning(f"COLMAP failed, using fallback: {e}")
+        logger.error(f"COLMAP failed: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            logger.error(f"COLMAP stderr: {e.stderr}")
+        if hasattr(e, 'stdout') and e.stdout:
+            logger.error(f"COLMAP stdout: {e.stdout}")
     
     # Fallback: assume all frames have cameras (no actual pose estimation)
+    logger.warning("Using fallback pose estimation (no COLMAP reconstruction)")
     return {
         "camera_count": len(valid_frames),
         "point_count": 0,

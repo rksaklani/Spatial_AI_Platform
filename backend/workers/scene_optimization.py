@@ -387,6 +387,7 @@ def save_tiles_to_db(scene_id: str, organization_id: str, tiles: List[Dict]):
     """Save tile metadata to MongoDB."""
     from motor.motor_asyncio import AsyncIOMotorClient
     from utils.config import settings
+    from pymongo.errors import BulkWriteError
     import asyncio
     
     async def _save():
@@ -400,9 +401,19 @@ def save_tiles_to_db(scene_id: str, organization_id: str, tiles: List[Dict]):
             for tile in tiles:
                 tile["scene_id"] = scene_id
                 tile["organization_id"] = organization_id
+                tile["tile_id"] = tile.get("_id")  # Store original tile name
+                # Make _id unique by combining scene_id with tile name
+                tile["_id"] = f"{scene_id}_{tile['tile_id']}"
                 tile["created_at"] = datetime.utcnow()
             
-            await db.scene_tiles.insert_many(tiles)
+            try:
+                await db.scene_tiles.insert_many(tiles)
+            except BulkWriteError as e:
+                # Log the error but don't fail completely if some tiles were inserted
+                logger.error(f"Bulk write error inserting tiles: {e.details}")
+                # Re-raise if no tiles were inserted
+                if e.details.get('nInserted', 0) == 0:
+                    raise
         
         client.close()
     
@@ -667,7 +678,7 @@ def optimize_and_tile(self, scene_id: str, job_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Optimization failed for {scene_id}: {e}")
         update_job_progress(job_id, 0, "failed", str(e))
-        update_scene_status(scene_id, "failed", error=str(e))
+        update_scene_status(scene_id, "failed", message=str(e))
         raise
         
     finally:

@@ -22,7 +22,7 @@ export function ScenesPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   
   // Organization check
-  const { checkOrganization, showCreateDialog, setShowCreateDialog } = useOrganizationCheck();
+  const { checkOrganization, showCreateDialog, setShowCreateDialog, currentOrg, isLoading: orgLoading } = useOrganizationCheck();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedScene, setSelectedScene] = useState<SceneMetadata | null>(null);
   const [processingSceneId, setProcessingSceneId] = useState<string | null>(null);
@@ -32,13 +32,22 @@ export function ScenesPage() {
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'name'>('createdAt');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
-  const { data: scenes = [], isLoading } = useGetScenesQuery();
+  const { data: scenes = [], isLoading, refetch } = useGetScenesQuery();
   const [deleteScene] = useDeleteSceneMutation();
 
   // Find scenes that are currently processing
   const processingScenes = useMemo(() => {
+    const processingStatuses = [
+      'uploaded',
+      'processing', 
+      'extracting_frames', 
+      'estimating_poses', 
+      'generating_depth', 
+      'reconstructing', 
+      'tiling'
+    ];
     return scenes.filter(scene => 
-      scene.status === 'processing'
+      processingStatuses.includes(scene.status)
     );
   }, [scenes]);
 
@@ -72,6 +81,15 @@ export function ScenesPage() {
     return filtered;
   }, [scenes, searchQuery, statusFilter, sortBy]);
 
+  // Separate scenes by type
+  const videoScenes = useMemo(() => {
+    return filteredScenes.filter(scene => scene.sourceType === 'video');
+  }, [filteredScenes]);
+
+  const modelScenes = useMemo(() => {
+    return filteredScenes.filter(scene => scene.sourceType === 'import');
+  }, [filteredScenes]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (searchQuery.trim()) count++;
@@ -80,7 +98,16 @@ export function ScenesPage() {
   }, [searchQuery, statusFilter]);
 
   const handleSceneClick = (sceneId: string) => {
-    navigate(`/scenes/${sceneId}`);
+    const scene = scenes.find(s => s.sceneId === sceneId);
+    
+    // Only navigate to viewer if scene is ready or completed
+    if (scene && (scene.status === 'ready' || scene.status === 'completed')) {
+      navigate(`/scenes/${sceneId}`);
+    } else {
+      // Scene is still processing or failed - show a message
+      console.log('Scene not ready for viewing:', scene?.status);
+      // Optionally show a toast notification
+    }
   };
 
   const handleSceneDelete = async (sceneId: string) => {
@@ -106,7 +133,9 @@ export function ScenesPage() {
 
   const handleImportComplete = (sceneId: string) => {
     setImportDialogOpen(false);
-    setProcessingSceneId(sceneId);
+    // Don't set processingSceneId for imports - they don't have a processing pipeline
+    // Just refetch to show the new scene in the list
+    refetch();
   };
 
   const handleProcessingComplete = () => {
@@ -136,7 +165,13 @@ export function ScenesPage() {
           <Button
             variant="secondary"
             size="lg"
-            onClick={() => checkOrganization(() => setImportDialogOpen(true))}
+            onClick={() => {
+              if (currentOrg || !orgLoading) {
+                setImportDialogOpen(true);
+              } else {
+                checkOrganization(() => setImportDialogOpen(true));
+              }
+            }}
             icon={<CubeIcon className="h-5 w-5" />}
           >
             Import 3D File
@@ -144,7 +179,13 @@ export function ScenesPage() {
           <Button
             variant="primary"
             size="lg"
-            onClick={() => checkOrganization(() => setUploadDialogOpen(true))}
+            onClick={() => {
+              if (currentOrg || !orgLoading) {
+                setUploadDialogOpen(true);
+              } else {
+                checkOrganization(() => setUploadDialogOpen(true));
+              }
+            }}
             icon={<ArrowUpTrayIcon className="h-5 w-5" />}
           >
             Upload Video
@@ -192,20 +233,65 @@ export function ScenesPage() {
         activeFilterCount={activeFilterCount}
       />
 
-      <SceneGrid
-        scenes={filteredScenes}
-        loading={isLoading}
-        onSceneClick={handleSceneClick}
-        onSceneDelete={handleSceneDelete}
-        onSceneEdit={() => {}}
-        onSceneShare={handleSceneShare}
-      />
+      {/* Video Scenes Section */}
+      {videoScenes.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <svg className="h-6 w-6 text-accent-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <h2 className="text-xl font-semibold text-text-primary">Video Reconstructions</h2>
+            <span className="text-sm text-text-muted">({videoScenes.length})</span>
+          </div>
+          <SceneGrid
+            scenes={videoScenes}
+            loading={isLoading}
+            onSceneClick={handleSceneClick}
+            onSceneDelete={handleSceneDelete}
+            onSceneEdit={() => {}}
+            onSceneShare={handleSceneShare}
+          />
+        </div>
+      )}
+
+      {/* Model Scenes Section */}
+      {modelScenes.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <svg className="h-6 w-6 text-accent-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            <h2 className="text-xl font-semibold text-text-primary">Imported 3D Models</h2>
+            <span className="text-sm text-text-muted">({modelScenes.length})</span>
+          </div>
+          <SceneGrid
+            scenes={modelScenes}
+            loading={isLoading}
+            onSceneClick={handleSceneClick}
+            onSceneDelete={handleSceneDelete}
+            onSceneEdit={() => {}}
+            onSceneShare={handleSceneShare}
+          />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && videoScenes.length === 0 && modelScenes.length === 0 && (
+        <div className="text-center py-12">
+          <svg className="h-16 w-16 text-text-muted mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+          <p className="text-lg text-text-secondary mb-2">No scenes yet</p>
+          <p className="text-sm text-text-muted">Upload a video or import a 3D model to get started</p>
+        </div>
+      )}
 
       <UploadDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onUpload={async () => {}}
         onUploadComplete={handleUploadComplete}
+        onRefresh={refetch}
       />
 
       <ImportDialog

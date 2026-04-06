@@ -300,7 +300,6 @@ async def create_annotation(
             if not annotation.metadata:
                 annotation.metadata = {}
             annotation.metadata.update(volume_data)
-                measurement_data.unit = "m2"
     
     # Create annotation document
     annotation_doc = {

@@ -5,7 +5,7 @@
  * Requirements: 9.1
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '../common';
 
 type AnnotationType = 'point' | 'line' | 'area' | 'text';
@@ -48,10 +48,84 @@ export function AnnotationToolbar({
   pointsCollected = 0,
 }: AnnotationToolbarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Initialize position on mount (centered, above bottom toolbar)
+  useEffect(() => {
+    if (toolbarRef.current) {
+      const rect = toolbarRef.current.getBoundingClientRect();
+      setPosition({
+        x: (window.innerWidth - rect.width) / 2,
+        y: window.innerHeight - rect.height - 120, // 120px from bottom
+      });
+    }
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Prevent dragging when clicking on buttons
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      const handleMove = (e: MouseEvent) => {
+        if (toolbarRef.current) {
+          const newX = e.clientX - dragOffset.x;
+          const newY = e.clientY - dragOffset.y;
+
+          // Constrain to viewport
+          const rect = toolbarRef.current.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+
+          setPosition({
+            x: Math.max(0, Math.min(newX, maxX)),
+            y: Math.max(0, Math.min(newY, maxY)),
+          });
+        }
+      };
+
+      const handleUp = () => {
+        setIsDragging(false);
+      };
+
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('mouseup', handleUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
 
   return (
-    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10">
-      <div className="bg-surface-elevated/95 backdrop-blur-sm border border-border-subtle rounded-lg shadow-lg p-3">
+    <div
+      ref={toolbarRef}
+      className="fixed z-10"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        cursor: isDragging ? 'grabbing' : 'default',
+      }}
+    >
+      <div
+        className="bg-surface-elevated/95 backdrop-blur-sm border border-border-subtle rounded-lg shadow-lg p-3 select-none"
+        onMouseDown={handleMouseDown}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      >
         <div className="flex items-center gap-3">
           {/* Mode Toggle */}
           <div className="flex gap-1 border-r border-border-subtle pr-3">

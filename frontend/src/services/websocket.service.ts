@@ -4,70 +4,21 @@
  * Handles WebSocket connection lifecycle, reconnection with exponential backoff,
  * and event-based message handling for real-time features like collaboration,
  * cursor tracking, and annotation sync.
+ * 
+ * Uses native WebSocket API (not Socket.IO) to match FastAPI backend.
  */
-
-import { io, Socket } from 'socket.io-client';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export interface WebSocketMessage {
   type: string;
-  payload: any;
-  timestamp: number;
-}
-
-// Collaboration events
-export interface UserJoinedEvent {
-  type: 'user:joined';
-  payload: {
-    userId: string;
-    userName: string;
-    color: string;
-  };
-}
-
-export interface UserLeftEvent {
-  type: 'user:left';
-  payload: {
-    userId: string;
-  };
-}
-
-export interface CursorMoveEvent {
-  type: 'cursor:move';
-  payload: {
-    userId: string;
-    position: [number, number, number];
-    cameraPosition: [number, number, number];
-  };
-}
-
-export interface AnnotationCreatedEvent {
-  type: 'annotation:created';
-  payload: {
-    annotation: any;
-  };
-}
-
-export interface AnnotationUpdatedEvent {
-  type: 'annotation:updated';
-  payload: {
-    annotationId: string;
-    changes: any;
-  };
-}
-
-export interface AnnotationDeletedEvent {
-  type: 'annotation:deleted';
-  payload: {
-    annotationId: string;
-  };
+  [key: string]: any;
 }
 
 type EventHandler = (data: any) => void;
 
 class WebSocketService {
-  private socket: Socket | null = null;
+  private ws: WebSocket | null = null;
   private connectionStatus: ConnectionStatus = 'disconnected';
   private statusListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private eventHandlers: Map<string, Set<EventHandler>> = new Map();
@@ -76,30 +27,44 @@ class WebSocketService {
   private baseReconnectDelay = 1000; // 1 second
   private maxReconnectDelay = 30000; // 30 seconds
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private currentSceneId: string | null = null;
+  private currentToken: string | null = null;
+  private currentUserId: string | null = null;
+  private currentUserName: string | null = null;
 
   /**
    * Connect to WebSocket server
    */
-  connect(sceneId: string, token: string): void {
-    if (this.socket?.connected) {
+  connect(sceneId: string, token: string, userId?: string, userName?: string): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       console.warn('WebSocket already connected');
       return;
     }
 
+    this.currentSceneId = sceneId;
+    this.currentToken = token;
+    this.currentUserId = userId || 'anonymous';
+    this.currentUserName = userName || 'Anonymous User';
+
     this.setStatus('connecting');
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    try {
+      // Use native WebSocket (not Socket.IO)
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname;
+      const wsPort = import.meta.env.VITE_WS_PORT || '8000';
+      const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}/ws/scenes/${sceneId}/collaborate?token=${encodeURIComponent(token)}`;
 
-    this.socket = io(wsUrl, {
-      path: `/ws/scenes/${sceneId}/collaborate`,
-      auth: {
-        token,
-      },
-      transports: ['websocket'],
-      reconnection: false, // We handle reconnection manually
-    });
+      console.log('Connecting to WebSocket:', wsUrl);
 
-    this.setupEventHandlers();
+      this.ws = new WebSocket(wsUrl);
+      this.setupEventHandlers();
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      this.setStatus('error');
+      this.scheduleReconnect();
+    }
   }
 
   /**
@@ -111,12 +76,19 @@ class WebSocketService {
       this.reconnectTimer = null;
     }
 
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
     }
 
     this.reconnectAttempts = 0;
+    this.currentSceneId = null;
+    this.currentToken = null;
     this.setStatus('disconnected');
   }
 
@@ -164,125 +136,142 @@ class WebSocketService {
   /**
    * Send message to server
    */
-  send(type: string, payload: any): void {
-    if (!this.socket?.connected) {
+  private send(message: WebSocketMessage): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('Cannot send message: WebSocket not connected');
       return;
     }
 
-    this.socket.emit('message', {
-      type,
-      payload,
-      timestamp: Date.now(),
-    });
+    try {
+      this.ws.send(JSON.stringify(message));
+    } catch (error) {
+      console.error('Failed to send WebSocket message:', error);
+    }
   }
 
   /**
    * Send cursor movement update
    */
-  sendCursorMove(position: [number, number, number], cameraPosition: [number, number, number]): void {
-    this.send('cursor_move', { position, cameraPosition });
+  sendCursorMove(position: [number, number, number]): void {
+    this.send({
+      type: 'cursor_move',
+      position,
+    });
   }
 
   /**
    * Send annotation created event
    */
   sendAnnotationCreated(annotation: any): void {
-    this.send('annotation_created', { annotation });
+    this.send({
+      type: 'annotation_create',
+      annotation,
+    });
   }
 
   /**
    * Send annotation updated event
    */
   sendAnnotationUpdated(annotationId: string, changes: any): void {
-    this.send('annotation_updated', { annotation_id: annotationId, changes });
+    this.send({
+      type: 'annotation_update',
+      annotation_id: annotationId,
+      changes,
+    });
   }
 
   /**
    * Send annotation deleted event
    */
   sendAnnotationDeleted(annotationId: string): void {
-    this.send('annotation_deleted', { annotation_id: annotationId });
+    this.send({
+      type: 'annotation_delete',
+      annotation_id: annotationId,
+    });
   }
 
   /**
-   * Setup socket event handlers
+   * Setup WebSocket event handlers
    */
   private setupEventHandlers(): void {
-    if (!this.socket) return;
+    if (!this.ws) return;
 
-    // Connection events
-    this.socket.on('connect', () => {
+    this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
       this.setStatus('connected');
-    });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason);
+      // Send join message
+      this.send({
+        type: 'join',
+        user_id: this.currentUserId!,
+        user_name: this.currentUserName!,
+      });
+
+      // Start heartbeat
+      this.startHeartbeat();
+    };
+
+    this.ws.onclose = (event) => {
+      console.log('WebSocket disconnected:', event.code, event.reason);
       this.setStatus('disconnected');
 
+      // Stop heartbeat
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
+
       // Attempt reconnection if not manually disconnected
-      if (reason !== 'io client disconnect') {
+      if (event.code !== 1000) {
         this.scheduleReconnect();
       }
-    });
+    };
 
-    this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
       this.setStatus('error');
-      this.scheduleReconnect();
-    });
+    };
 
-    // Message events
-    this.socket.on('message', (message: WebSocketMessage) => {
-      this.handleMessage(message);
-    });
+    this.ws.onmessage = (event) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
+        this.handleMessage(message);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+  }
 
-    // Specific event types from backend
-    this.socket.on('active_users', (data) => {
-      this.emitEvent('active_users', data);
-    });
+  /**
+   * Start heartbeat to keep connection alive
+   */
+  private startHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+    }
 
-    this.socket.on('user_joined', (data) => {
-      this.emitEvent('user:joined', data);
-    });
-
-    this.socket.on('user_left', (data) => {
-      this.emitEvent('user:left', data);
-    });
-
-    this.socket.on('cursor_update', (data) => {
-      this.emitEvent('cursor:move', data);
-    });
-
-    this.socket.on('annotation_created', (data) => {
-      this.emitEvent('annotation:created', data);
-    });
-
-    this.socket.on('annotation_updated', (data) => {
-      this.emitEvent('annotation:updated', data);
-    });
-
-    this.socket.on('annotation_deleted', (data) => {
-      this.emitEvent('annotation:deleted', data);
-    });
-
-    this.socket.on('error', (data) => {
-      console.error('WebSocket error:', data);
-      this.emitEvent('error', data);
-    });
+    // Send heartbeat every 30 seconds
+    this.heartbeatTimer = setInterval(() => {
+      this.send({ type: 'heartbeat' });
+    }, 30000);
   }
 
   /**
    * Handle incoming message
    */
   private handleMessage(message: WebSocketMessage): void {
-    this.emitEvent(message.type, message.payload);
+    const { type, ...data } = message;
+
+    // Emit to specific event handlers
+    this.emitEvent(type, data);
+
+    // Also emit generic message event
+    this.emitEvent('message', message);
   }
 
   /**
-   * Emit event to all registered handlers
+   * Emit event to registered handlers
    */
   private emitEvent(eventType: string, data: any): void {
     const handlers = this.eventHandlers.get(eventType);
@@ -323,19 +312,29 @@ class WebSocketService {
       return;
     }
 
-    // Calculate delay with exponential backoff
+    if (this.reconnectTimer) {
+      return; // Already scheduled
+    }
+
     const delay = Math.min(
       this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts),
       this.maxReconnectDelay
     );
 
-    this.reconnectAttempts++;
-    console.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    console.log(`Scheduling reconnection attempt ${this.reconnectAttempts + 1} in ${delay}ms`);
 
     this.reconnectTimer = setTimeout(() => {
-      if (this.socket && !this.socket.connected) {
+      this.reconnectTimer = null;
+      this.reconnectAttempts++;
+      
+      if (this.currentSceneId && this.currentToken) {
         console.log('Attempting to reconnect...');
-        this.socket.connect();
+        this.connect(
+          this.currentSceneId,
+          this.currentToken,
+          this.currentUserId || undefined,
+          this.currentUserName || undefined
+        );
       }
     }, delay);
   }

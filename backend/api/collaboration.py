@@ -56,7 +56,7 @@ async def collaborate_on_scene(
     try:
         # Verify scene exists
         db = Database.get_db()
-        scene = await db.scenes.find_one({"_id": ObjectId(scene_id)})
+        scene = await db.scenes.find_one({"_id": scene_id})
         if not scene:
             await websocket.send_json({
                 "type": "error",
@@ -280,8 +280,8 @@ async def get_active_users(
     # Verify scene exists and user has access
     db = Database.get_db()
     scene = await db.scenes.find_one({
-        "_id": ObjectId(scene_id),
-        "organization_id": ObjectId(current_user.organization_id)
+        "_id": scene_id,
+        "organization_id": current_user.organization_id
     })
     
     if not scene:
