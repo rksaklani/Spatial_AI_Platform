@@ -87,6 +87,14 @@ class ProcessingJobInDB(BaseModel):
     current_step: Optional[str] = None
     steps: List[JobStep] = Field(default_factory=list)
     
+    # Training progress fields (for Gaussian Splatting)
+    current_iteration: Optional[int] = None
+    total_iterations: Optional[int] = None
+    estimated_seconds_remaining: Optional[float] = None
+    average_iterations_per_second: Optional[float] = None
+    iteration_times: List[float] = Field(default_factory=list)  # Last 500 iteration times
+    last_progress_update: Optional[datetime] = None
+    
     # Results
     result: Optional[Dict[str, Any]] = None
     output_paths: Dict[str, str] = Field(default_factory=dict)

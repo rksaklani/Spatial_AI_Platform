@@ -67,6 +67,23 @@ export class ApiService {
   async logout(): Promise<void> {
     return httpClient.post<void>('/auth/logout', {});
   }
+
+  async fetchSceneProgress(sceneId: string): Promise<ProgressResponse> {
+    return httpClient.get<ProgressResponse>(`/scenes/${sceneId}/progress`);
+  }
 }
 
 export const apiService = new ApiService();
+
+// Progress response type
+export interface ProgressResponse {
+  scene_id: string;
+  progress_percent: number;
+  current_step: string;
+  status_message: string;
+  current_iteration?: number;
+  total_iterations?: number;
+  estimated_seconds_remaining?: number;
+  started_at?: string;
+  elapsed_seconds?: number;
+}

@@ -6,8 +6,10 @@ import { ModelViewer } from '../components/ModelViewer';
 import { AnnotationPreview } from '../components/viewer';
 import { CollaborationOverlay } from '../components/CollaborationOverlay';
 import { ShareDialog } from '../components/sharing/ShareDialog';
+import { TrainingProgressDisplay } from '../components/TrainingProgressDisplay';
 import { useAnnotationCreation } from '../hooks/useAnnotationCreation';
 import { useCollaboration } from '../hooks/useCollaboration';
+import { useSceneProgress } from '../hooks/useSceneProgress';
 import { websocketService } from '../services/websocket.service';
 import { useAppSelector } from '../store/hooks';
 import { useGetSceneByIdQuery } from '../store/api/sceneApi';
@@ -30,6 +32,25 @@ export function ViewerPage() {
   // Fetch scene data
   const { data: scene } = useGetSceneByIdQuery(sceneId || '', { skip: !sceneId });
   const token = useAppSelector(state => state.auth.token);
+  
+  // Progress tracking for processing scenes
+  const {
+    progressPercent,
+    currentIteration,
+    totalIterations,
+    statusMessage,
+    estimatedSecondsRemaining,
+    isLoading: progressLoading,
+    error: progressError,
+    isComplete: progressComplete,
+    isFailed: progressFailed,
+  } = useSceneProgress({
+    sceneId: sceneId || '',
+    token: token || '',
+    enabled: scene?.status === 'processing' || scene?.status === 'reconstructing',
+    pollingInterval: 5000,
+    enableWebSocket: true,
+  });
   
   // Annotation state
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('view');
@@ -279,17 +300,29 @@ export function ViewerPage() {
   // Check if scene is still processing
   if (scene && scene.status === 'processing') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-primary-bg">
-        <div className="text-center">
-          <div className="mb-4">
-            <svg className="animate-spin h-12 w-12 text-accent-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+      <div className="flex flex-col items-center justify-center h-screen bg-primary-bg p-8">
+        <div className="max-w-2xl w-full">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-text-primary mb-2">Processing Video</h2>
+            <p className="text-text-secondary mb-4">Your video is being converted to 3D. This may take 20-60 minutes.</p>
+            <p className="text-text-muted text-sm">You can close this page and come back later.</p>
           </div>
-          <h2 className="text-2xl font-bold text-text-primary mb-2">Processing Video</h2>
-          <p className="text-text-secondary mb-4">Your video is being converted to 3D. This may take 20-60 minutes.</p>
-          <p className="text-text-muted text-sm">You can close this page and come back later.</p>
+          
+          {/* Real-time progress display */}
+          <TrainingProgressDisplay
+            progressPercent={progressPercent}
+            currentIteration={currentIteration}
+            totalIterations={totalIterations}
+            statusMessage={statusMessage}
+            estimatedSecondsRemaining={estimatedSecondsRemaining}
+            state={progressFailed ? 'failed' : progressComplete ? 'complete' : 'in-progress'}
+          />
+          
+          {progressError && (
+            <div className="mt-4 p-4 bg-red-500/20 border border-red-500/30 rounded-lg">
+              <p className="text-sm text-red-300">{progressError}</p>
+            </div>
+          )}
         </div>
       </div>
     );

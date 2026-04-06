@@ -678,6 +678,73 @@ async def reprocess_scene(
     return {"job_id": job_id, "message": "Reprocessing triggered"}
 
 
+@router.get("/{scene_id}/progress")
+async def get_scene_progress(
+    scene_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Get current training progress for a scene.
+    
+    Returns real-time progress information including:
+    - Progress percentage
+    - Current iteration count
+    - Estimated time remaining
+    - Current processing step
+    """
+    from models.progress import ProgressResponse
+    
+    db = await get_db()
+    
+    # Verify scene exists and user has access
+    scene = await db.scenes.find_one({"_id": scene_id})
+    
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scene not found"
+        )
+    
+    if scene["organization_id"] != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this scene"
+        )
+    
+    # Get latest processing job for the scene
+    job = await db.processing_jobs.find_one(
+        {"scene_id": scene_id},
+        sort=[("created_at", -1)]
+    )
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No processing job found for this scene"
+        )
+    
+    # Calculate elapsed time
+    elapsed_seconds = None
+    if job.get("started_at"):
+        elapsed = datetime.utcnow() - job["started_at"]
+        elapsed_seconds = elapsed.total_seconds()
+    
+    # Build response
+    response = ProgressResponse(
+        scene_id=scene_id,
+        progress_percent=job.get("progress_percent", 0.0),
+        current_step=job.get("current_step", "pending"),
+        status_message=scene.get("status_message", "Processing"),
+        current_iteration=job.get("current_iteration"),
+        total_iterations=job.get("total_iterations"),
+        estimated_seconds_remaining=job.get("estimated_seconds_remaining"),
+        started_at=job.get("started_at"),
+        elapsed_seconds=elapsed_seconds
+    )
+    
+    return response
+
+
 # ============================================================================
 # Camera Configuration Endpoints
 # ============================================================================

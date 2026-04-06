@@ -458,6 +458,7 @@ def train_gaussians_real(
     images_dir: str,
     output_dir: str,
     num_iterations: int = 7000,
+    progress_callback=None,
 ) -> Dict[str, Any]:
     """
     Train Gaussian Splatting model using the official graphdeco-inria implementation.
@@ -470,6 +471,7 @@ def train_gaussians_real(
         images_dir: Directory containing training images
         output_dir: Directory to save trained model
         num_iterations: Number of training iterations (default: 7000)
+        progress_callback: Optional callback function(iteration: int) for progress updates
         
     Returns:
         Training metrics from the actual training run
@@ -480,6 +482,7 @@ def train_gaussians_real(
     """
     import subprocess
     import sys
+    import re
     
     logger.info(f"Starting REAL Gaussian Splatting training for {num_iterations} iterations")
     
@@ -564,6 +567,9 @@ def train_gaussians_real(
     # Run training with real-time output capture
     start_time = time.time()
     
+    # Pattern to match iteration progress (e.g., "Iteration 1000/7000")
+    iteration_pattern = re.compile(r'Iteration\s+(\d+)/\d+')
+    
     try:
         process = subprocess.Popen(
             cmd,
@@ -574,11 +580,21 @@ def train_gaussians_real(
             universal_newlines=True,
         )
         
-        # Stream output
+        # Stream output and track progress
         for line in process.stdout:
             line = line.strip()
             if line:
                 logger.info(f"[GS] {line}")
+                
+                # Check for iteration progress
+                if progress_callback:
+                    match = iteration_pattern.search(line)
+                    if match:
+                        current_iteration = int(match.group(1))
+                        try:
+                            progress_callback(current_iteration)
+                        except Exception as e:
+                            logger.warning(f"Progress callback error: {e}")
         
         # Wait for completion
         return_code = process.wait()
@@ -665,6 +681,21 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
     # Training parameters
     num_iterations = 7000  # Default number of training iterations
     
+    # Initialize progress tracker
+    from services.progress_tracker import TrainingProgressTracker
+    from services.progress_service import get_progress_service
+    from utils.config import settings
+    
+    tracker = TrainingProgressTracker(
+        scene_id=scene_id,
+        job_id=job_id,
+        total_iterations=num_iterations,
+        mongodb_url=settings.mongodb_url,
+        database_name=settings.database_name
+    )
+    
+    progress_service = get_progress_service()
+    
     try:
         logger.info(f"Starting REAL Gaussian Splatting reconstruction for scene {scene_id}")
         
@@ -727,12 +758,50 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         gs_output_dir = os.path.join(work_dir, "gaussian_output")
         
+        # Define progress callback
+        def on_iteration_progress(iteration: int):
+            """Callback for training iteration progress."""
+            # Update tracker (async operation wrapped in sync context)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(tracker.update_iteration(iteration))
+                
+                # Check if should broadcast
+                if tracker.should_broadcast():
+                    from models.progress import ProgressEvent
+                    from datetime import datetime
+                    
+                    # Create progress event
+                    event = ProgressEvent(
+                        type="progress_update",
+                        scene_id=scene_id,
+                        progress_percent=tracker.calculate_progress_percent(),
+                        current_step="training",
+                        status_message=f"Training Gaussian Splatting ({num_iterations} iterations)",
+                        current_iteration=tracker.current_iteration,
+                        total_iterations=tracker.total_iterations,
+                        estimated_seconds_remaining=tracker.calculate_estimated_seconds_remaining(),
+                        timestamp=datetime.utcnow()
+                    )
+                    
+                    # Broadcast to WebSocket subscribers
+                    loop.run_until_complete(
+                        progress_service.broadcast_progress(
+                            scene_id,
+                            event.dict()
+                        )
+                    )
+            finally:
+                loop.close()
+        
         try:
             train_metrics = train_gaussians_real(
                 sparse_dir=sparse_dir,
                 images_dir=images_dir,
                 output_dir=gs_output_dir,
                 num_iterations=num_iterations,
+                progress_callback=on_iteration_progress,
             )
             
             trained_ply_path = train_metrics["output_ply_path"]
@@ -822,6 +891,32 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         # Update scene status
         update_job_progress(job_id, 100, "completed", "Reconstruction complete")
+        
+        # Broadcast training completion event
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            from models.progress import ProgressEvent
+            from datetime import datetime
+            
+            completion_event = ProgressEvent(
+                type="training_complete",
+                scene_id=scene_id,
+                progress_percent=100.0,
+                current_step="completed",
+                status_message="Reconstruction complete",
+                total_time_seconds=processing_time,
+                timestamp=datetime.utcnow()
+            )
+            
+            loop.run_until_complete(
+                progress_service.broadcast_progress(
+                    scene_id,
+                    completion_event.dict()
+                )
+            )
+        finally:
+            loop.close()
         
         logger.info(f"REAL Gaussian Splatting complete for {scene_id}: {optimized_count} Gaussians")
         
@@ -948,6 +1043,32 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         logger.error(f"Gaussian Splatting failed for {scene_id}: {e}")
         update_job_progress(job_id, 0, "failed", f"Reconstruction failed: {str(e)}")
         update_scene_status(scene_id, "failed", f"Reconstruction failed: {str(e)}")
+        
+        # Broadcast training failure event
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            from models.progress import ProgressEvent
+            from datetime import datetime
+            
+            failure_event = ProgressEvent(
+                type="training_failed",
+                scene_id=scene_id,
+                current_step="failed",
+                status_message="Reconstruction failed",
+                error_message=str(e),
+                timestamp=datetime.utcnow()
+            )
+            
+            loop.run_until_complete(
+                progress_service.broadcast_progress(
+                    scene_id,
+                    failure_event.dict()
+                )
+            )
+        finally:
+            loop.close()
+        
         raise
         
     finally:

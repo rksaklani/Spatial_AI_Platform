@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useGetSceneJobsQuery } from '../../store/api/sceneApi';
+import { TrainingProgressDisplay } from '../TrainingProgressDisplay';
+import { useSceneProgress } from '../../hooks/useSceneProgress';
+import { useAppSelector } from '../../store/hooks';
 
 interface ProcessingStage {
   name: string;
@@ -27,10 +30,31 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isJobComplete, setIsJobComplete] = useState(false);
+  
+  const token = useAppSelector(state => state.auth.token);
 
   const { data: jobs, isLoading } = useGetSceneJobsQuery(sceneId, {
     pollingInterval: isJobComplete ? 0 : 2000, // Stop polling when complete
     skip: isJobComplete, // Skip query when complete
+  });
+  
+  // Use the new progress hook for real-time updates
+  const {
+    progressPercent,
+    currentIteration,
+    totalIterations,
+    statusMessage,
+    estimatedSecondsRemaining,
+    currentStep,
+    isComplete: progressComplete,
+    isFailed: progressFailed,
+    error: progressError,
+  } = useSceneProgress({
+    sceneId,
+    token: token || '',
+    enabled: !isJobComplete,
+    pollingInterval: 5000,
+    enableWebSocket: true,
   });
 
   useEffect(() => {
@@ -67,6 +91,21 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       setProgress(latestJob.progress_percent);
     }
   }, [jobs, onComplete, onError, error]);
+  
+  // Handle progress completion from WebSocket/REST
+  useEffect(() => {
+    if (progressComplete && !isJobComplete) {
+      setIsJobComplete(true);
+      onComplete?.();
+    }
+    if (progressFailed && !isJobComplete) {
+      setIsJobComplete(true);
+      if (progressError) {
+        setError(progressError);
+        onError?.(progressError);
+      }
+    }
+  }, [progressComplete, progressFailed, progressError, isJobComplete, onComplete, onError]);
 
   if (isLoading) {
     return (
@@ -76,43 +115,61 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     );
   }
 
-  if (error) {
+  if (error || progressError) {
     return (
       <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <span className="text-2xl">❌</span>
           <div className="flex-1">
             <p className="text-sm font-medium text-red-400 mb-1">Processing Failed</p>
-            <p className="text-xs text-red-300">{error}</p>
+            <p className="text-xs text-red-300">{error || progressError}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.name === currentStage);
+  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.name === (currentStep || currentStage));
   const completedStages = currentStageIndex >= 0 ? currentStageIndex : 0;
+  
+  // Use real-time progress data when available
+  const displayProgress = progressPercent > 0 ? progressPercent : progress;
+  const displayStatusMessage = statusMessage || (currentStageIndex >= 0 ? PROCESSING_STAGES[currentStageIndex].label : 'Processing...');
 
   return (
-    <div className="space-y-4">
-      {/* Progress bar */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-text-secondary">Processing Scene</span>
-          <span className="text-text-primary font-medium">{Math.round(progress)}%</span>
+    <div className="space-y-6">
+      {/* Real-time training progress display (when training) */}
+      {currentStep === 'reconstructing' && currentIteration !== undefined && totalIterations !== undefined && (
+        <TrainingProgressDisplay
+          progressPercent={displayProgress}
+          currentIteration={currentIteration}
+          totalIterations={totalIterations}
+          statusMessage={displayStatusMessage}
+          estimatedSecondsRemaining={estimatedSecondsRemaining}
+          state={progressFailed ? 'failed' : progressComplete ? 'complete' : 'in-progress'}
+        />
+      )}
+      
+      {/* Standard progress bar for other stages */}
+      {currentStep !== 'reconstructing' && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Processing Scene</span>
+            <span className="text-text-primary font-medium">{Math.round(displayProgress)}%</span>
+          </div>
+          <div className="h-2 bg-secondary-bg rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-500 ease-out"
+              style={{ width: `${displayProgress}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 bg-secondary-bg rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Stage indicators */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {PROCESSING_STAGES.map((stage, index) => {
-          const isActive = stage.name === currentStage;
+          const isActive = stage.name === (currentStep || currentStage);
           const isCompleted = index < completedStages;
           const isPending = index > completedStages;
 
@@ -140,7 +197,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       {currentStageIndex >= 0 && currentStageIndex < PROCESSING_STAGES.length && (
         <div className="text-center">
           <p className="text-sm text-text-secondary">
-            {PROCESSING_STAGES[currentStageIndex].label}...
+            {displayStatusMessage}
           </p>
         </div>
       )}
