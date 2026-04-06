@@ -119,3 +119,4 @@ htmlcov/
 .kiro/
 sessions/
 backend/gaussian-splatting/
+memory/
