@@ -662,6 +662,9 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
     start_time = time.time()
     work_dir = None
     
+    # Training parameters
+    num_iterations = 7000  # Default number of training iterations
+    
     try:
         logger.info(f"Starting REAL Gaussian Splatting reconstruction for scene {scene_id}")
         
@@ -817,17 +820,125 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         # Update scene status
         update_job_progress(job_id, 100, "completed", "Reconstruction complete")
-        update_scene_status(
-            scene_id,
-            "reconstructed",
-            f"Reconstructed with {optimized_count} Gaussians",
-            metrics={
-                "gaussian_count": optimized_count,
-                "size_reduction_percent": size_reduction,
-            }
-        )
         
         logger.info(f"REAL Gaussian Splatting complete for {scene_id}: {optimized_count} Gaussians")
+        
+        # Chain to tiling/optimization
+        logger.info(f"Chaining to tiling/optimization for scene {scene_id}")
+        try:
+            from workers.scene_optimization import optimize_and_tile
+            from motor.motor_asyncio import AsyncIOMotorClient
+            from utils.config import settings
+            import asyncio
+            import uuid
+            from datetime import datetime
+            
+            # Create tiling job
+            async def create_tiling_job():
+                client = AsyncIOMotorClient(settings.mongodb_url)
+                db = client[settings.database_name]
+                try:
+                    # Get scene to get organization_id
+                    scene = await db.scenes.find_one({"_id": scene_id})
+                    if not scene:
+                        raise ValueError(f"Scene {scene_id} not found")
+                    
+                    organization_id = scene.get("organization_id", "default-org")
+                    
+                    tiling_job_id = str(uuid.uuid4())
+                    now = datetime.utcnow()
+                    
+                    job_doc = {
+                        "_id": tiling_job_id,
+                        "scene_id": scene_id,
+                        "organization_id": organization_id,
+                        "job_type": "optimization",
+                        "priority": "normal",
+                        "parameters": {},
+                        "celery_task_id": None,
+                        "worker_id": None,
+                        "queue": "cpu",
+                        "status": "pending",
+                        "error_message": None,
+                        "retry_count": 0,
+                        "max_retries": 2,
+                        "progress_percent": 0.0,
+                        "current_step": None,
+                        "steps": [],
+                        "result": None,
+                        "output_paths": {},
+                        "created_at": now,
+                        "updated_at": now,
+                        "queued_at": None,
+                        "started_at": None,
+                        "completed_at": None,
+                        "wait_time_seconds": None,
+                        "run_time_seconds": None,
+                    }
+                    
+                    await db.processing_jobs.insert_one(job_doc)
+                    return tiling_job_id
+                finally:
+                    client.close()
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            tiling_job_id = loop.run_until_complete(create_tiling_job())
+            loop.close()
+            
+            # Trigger tiling task
+            tiling_result = optimize_and_tile.delay(scene_id, tiling_job_id)
+            
+            # Update job with Celery task ID
+            async def update_tiling_job():
+                client = AsyncIOMotorClient(settings.mongodb_url)
+                db = client[settings.database_name]
+                try:
+                    await db.processing_jobs.update_one(
+                        {"_id": tiling_job_id},
+                        {
+                            "$set": {
+                                "celery_task_id": tiling_result.id,
+                                "status": "queued",
+                                "queued_at": datetime.utcnow(),
+                                "updated_at": datetime.utcnow(),
+                            }
+                        }
+                    )
+                finally:
+                    client.close()
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(update_tiling_job())
+            loop.close()
+            
+            logger.info(f"Chained to tiling job {tiling_job_id}, Celery task {tiling_result.id}")
+            
+            # Update scene status to show tiling is queued
+            update_scene_status(
+                scene_id,
+                "queued_tiling",
+                f"Reconstruction complete with {optimized_count} Gaussians, tiling queued",
+                metrics={
+                    "gaussian_count": optimized_count,
+                    "size_reduction_percent": size_reduction,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to chain to tiling: {e}")
+            # Don't fail the whole reconstruction, just log the error
+            # Scene is still usable, just needs manual tiling trigger
+            update_scene_status(
+                scene_id,
+                "reconstructed",
+                f"Reconstructed with {optimized_count} Gaussians, but tiling chaining failed: {str(e)}",
+                metrics={
+                    "gaussian_count": optimized_count,
+                    "size_reduction_percent": size_reduction,
+                }
+            )
         
         return result
         

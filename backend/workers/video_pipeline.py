@@ -290,10 +290,106 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         update_job_progress(job_id, "completed", 100, "completed", 
                           f"Pipeline completed in {processing_time:.1f}s", result=result)
-        update_scene_status(scene_id, "ready", "Processing completed successfully",
-                          metrics={"processing_time_seconds": processing_time})
         
         logger.info(f"Pipeline completed for scene {scene_id} in {processing_time:.1f}s")
+        
+        # Chain to Gaussian Splatting reconstruction
+        logger.info(f"Chaining to Gaussian Splatting reconstruction for scene {scene_id}")
+        try:
+            from workers.gaussian_splatting import reconstruct_scene
+            from motor.motor_asyncio import AsyncIOMotorClient
+            from utils.config import settings
+            import asyncio
+            import uuid
+            from datetime import datetime
+            
+            # Create reconstruction job
+            async def create_reconstruction_job():
+                client = AsyncIOMotorClient(settings.mongodb_url)
+                db = client[settings.database_name]
+                try:
+                    reconstruction_job_id = str(uuid.uuid4())
+                    now = datetime.utcnow()
+                    
+                    job_doc = {
+                        "_id": reconstruction_job_id,
+                        "scene_id": scene_id,
+                        "organization_id": organization_id,
+                        "job_type": "reconstruction",
+                        "priority": "normal",
+                        "parameters": {},
+                        "celery_task_id": None,
+                        "worker_id": None,
+                        "queue": "gpu",
+                        "status": "pending",
+                        "error_message": None,
+                        "retry_count": 0,
+                        "max_retries": 2,
+                        "progress_percent": 0.0,
+                        "current_step": None,
+                        "steps": [],
+                        "result": None,
+                        "output_paths": {},
+                        "created_at": now,
+                        "updated_at": now,
+                        "queued_at": None,
+                        "started_at": None,
+                        "completed_at": None,
+                        "wait_time_seconds": None,
+                        "run_time_seconds": None,
+                    }
+                    
+                    await db.processing_jobs.insert_one(job_doc)
+                    return reconstruction_job_id
+                finally:
+                    client.close()
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            reconstruction_job_id = loop.run_until_complete(create_reconstruction_job())
+            loop.close()
+            
+            # Trigger reconstruction task
+            reconstruction_result = reconstruct_scene.delay(scene_id, reconstruction_job_id)
+            
+            # Update job with Celery task ID
+            async def update_reconstruction_job():
+                client = AsyncIOMotorClient(settings.mongodb_url)
+                db = client[settings.database_name]
+                try:
+                    await db.processing_jobs.update_one(
+                        {"_id": reconstruction_job_id},
+                        {
+                            "$set": {
+                                "celery_task_id": reconstruction_result.id,
+                                "status": "queued",
+                                "queued_at": datetime.utcnow(),
+                                "updated_at": datetime.utcnow(),
+                            }
+                        }
+                    )
+                finally:
+                    client.close()
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(update_reconstruction_job())
+            loop.close()
+            
+            logger.info(f"Chained to reconstruction job {reconstruction_job_id}, Celery task {reconstruction_result.id}")
+            
+            # Update scene status to show reconstruction is queued
+            update_scene_status(scene_id, "queued_reconstruction", 
+                              "Video processing complete, Gaussian Splatting queued",
+                              metrics={"processing_time_seconds": processing_time})
+            
+        except Exception as e:
+            logger.error(f"Failed to chain to reconstruction: {e}")
+            # Don't fail the whole pipeline, just log the error
+            # Scene is still usable for frame/depth viewing
+            update_scene_status(scene_id, "ready", 
+                              f"Video processing complete, but reconstruction chaining failed: {str(e)}",
+                              metrics={"processing_time_seconds": processing_time})
         
         return result
         

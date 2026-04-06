@@ -792,3 +792,59 @@ async def update_camera_config(
     )
     
     return camera_config
+
+
+@router.post("/{scene_id}/sync-status")
+async def sync_scene_status(
+    scene_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db = Depends(get_db),
+):
+    """
+    Manually sync scene status based on job completion.
+    
+    Useful when the automatic status update fails during processing.
+    Checks the latest job for this scene and updates the scene status accordingly.
+    """
+    from workers.scene_status_sync import sync_single_scene
+    
+    # Verify scene exists and user has access
+    scene = await db.scenes.find_one({"_id": scene_id})
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scene not found"
+        )
+    
+    # Check organization access
+    if scene["organization_id"] != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this scene"
+        )
+    
+    # Sync the status
+    result = await sync_single_scene(scene_id)
+    
+    return result
+
+
+@router.post("/sync-all-statuses")
+async def sync_all_scene_statuses(
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Sync all processing scenes in the organization.
+    
+    Admin endpoint to fix any scenes where status updates failed.
+    """
+    from workers.scene_status_sync import sync_scene_statuses
+    
+    result = await sync_scene_statuses()
+    
+    return {
+        "success": True,
+        "message": f"Synced {result['synced_completed']} completed and {result['synced_failed']} failed scenes",
+        "synced_completed": result['synced_completed'],
+        "synced_failed": result['synced_failed']
+    }

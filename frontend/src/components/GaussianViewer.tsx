@@ -882,7 +882,10 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         },
       });
 
-      if (!response.ok) return;
+      if (!response.ok) {
+        // BIM elements are optional - silently skip if not available
+        return;
+      }
 
       const elements = await response.json();
 
@@ -970,7 +973,10 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         },
       });
 
-      if (!response.ok) return;
+      if (!response.ok) {
+        // Overlays are optional - silently skip if not available
+        return;
+      }
 
       const overlays = await response.json();
 

@@ -20,7 +20,7 @@ export function NotificationsTab() {
           Choose which notifications you want to receive
         </p>
 
-        <div className="space-y-4 max-w-md">
+        <div className="space-y-4 max-w-2xl">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"

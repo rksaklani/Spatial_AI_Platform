@@ -18,7 +18,7 @@ export function PreferencesTab() {
       {/* Appearance */}
       <div>
         <h3 className="text-lg font-medium text-text-primary mb-4">Appearance</h3>
-        <div className="space-y-4 max-w-md">
+        <div className="space-y-4 max-w-2xl">
           <Dropdown
             label="Theme"
             value={preferences.theme}
@@ -46,7 +46,7 @@ export function PreferencesTab() {
       {/* Viewer Settings */}
       <div className="pt-8 border-t border-border-subtle">
         <h3 className="text-lg font-medium text-text-primary mb-4">3D Viewer</h3>
-        <div className="space-y-4 max-w-md">
+        <div className="space-y-4 max-w-2xl">
           <Dropdown
             label="Default Rendering Mode"
             value={preferences.viewerSettings.defaultRenderingMode}

@@ -46,14 +46,14 @@ export function NavigationBar({
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Left: Logo and Organization Name */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 min-w-0">
             <Link to="/" className="flex items-center space-x-3 group">
               {/* Logo */}
-              <div className="w-10 h-10 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-all duration-200">
+              <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-all duration-200">
                 <span className="text-white font-bold text-xl">S</span>
               </div>
               {/* Organization Name */}
-              <span className="text-text-primary font-display font-bold text-xl group-hover:text-accent-primary transition-colors duration-200">
+              <span className="text-text-primary font-display font-bold text-xl whitespace-nowrap group-hover:text-accent-primary transition-colors duration-200">
                 {organizationName}
               </span>
             </Link>

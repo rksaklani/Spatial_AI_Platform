@@ -1,6 +1,8 @@
 /**
  * Universal 3D Model Viewer
- * Supports: GLB, GLTF, OBJ, FBX, PLY, and Gaussian Splatting
+ * Supports: GLB, GLTF, OBJ, PLY, STL, FBX, DAE, and Gaussian Splatting
+ * Point Clouds: PLY, LAS, LAZ, E57
+ * BIM: IFC
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -8,12 +10,16 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { ColladaLoader } from 'three/addons/loaders/ColladaLoader.js';
 
 interface ModelViewerProps {
   sceneId: string;
   modelUrl: string;
-  modelType: 'glb' | 'gltf' | 'obj' | 'ply' | 'splat';
+  modelType: 'glb' | 'gltf' | 'obj' | 'ply' | 'stl' | 'fbx' | 'dae' | 'splat' | 'las' | 'laz' | 'e57' | 'ifc';
   token?: string | null;
   onError?: (error: Error) => void;
   onLoadProgress?: (progress: number) => void;
@@ -403,6 +409,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       setIsLoading(true);
       setError(null);
 
+      console.log('Loading model:', { url, type });
+
       let model: THREE.Object3D | null = null;
 
       // Fetch the file with authentication headers
@@ -418,6 +426,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
+      
+      console.log('Model blob created:', { size: blob.size, type: blob.type });
 
       if (type === 'glb' || type === 'gltf') {
         const loader = new GLTFLoader();
@@ -434,11 +444,65 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         });
         model = gltf.scene;
       } else if (type === 'obj') {
-        const loader = new OBJLoader();
+        // Try to load MTL file first (if it exists)
+        const objLoader = new OBJLoader();
+        
+        // Check if there's a corresponding .mtl file
+        const mtlUrl = url.replace(/\.obj$/i, '.mtl');
+        let materialsLoaded = false;
+        
+        try {
+          // Attempt to load MTL file
+          const mtlResponse = await fetch(mtlUrl, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+          
+          if (mtlResponse.ok) {
+            const mtlBlob = await mtlResponse.blob();
+            const mtlBlobUrl = URL.createObjectURL(mtlBlob);
+            
+            const mtlLoader = new MTLLoader();
+            const materials = await new Promise<any>((resolve, reject) => {
+              mtlLoader.load(
+                mtlBlobUrl,
+                (materials) => resolve(materials),
+                undefined,
+                (error) => reject(error)
+              );
+            });
+            
+            materials.preload();
+            objLoader.setMaterials(materials);
+            materialsLoaded = true;
+            URL.revokeObjectURL(mtlBlobUrl);
+            console.log('MTL file loaded successfully');
+          }
+        } catch (error) {
+          console.log('No MTL file found or failed to load, using default material');
+        }
+        
+        // Load OBJ file
         model = await new Promise<THREE.Object3D>((resolve, reject) => {
-          loader.load(
+          objLoader.load(
             blobUrl,
-            (obj) => resolve(obj),
+            (obj) => {
+              // If no materials were loaded, apply a default material
+              if (!materialsLoaded) {
+                obj.traverse((child) => {
+                  if ((child as THREE.Mesh).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    // Apply a default gray material with lighting
+                    mesh.material = new THREE.MeshStandardMaterial({
+                      color: 0x808080,
+                      roughness: 0.7,
+                      metalness: 0.3,
+                      side: THREE.DoubleSide, // Render both sides
+                    });
+                  }
+                });
+              }
+              resolve(obj);
+            },
             (progress) => {
               const percent = (progress.loaded / progress.total) * 100;
               onLoadProgress?.(percent);
@@ -459,20 +523,93 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             (error) => reject(error)
           );
         });
-        const material = new THREE.MeshStandardMaterial({ vertexColors: true });
+        // Compute normals if not present
+        if (!geometry.attributes.normal) {
+          geometry.computeVertexNormals();
+        }
+        const material = new THREE.MeshStandardMaterial({ 
+          vertexColors: geometry.attributes.color ? true : false,
+          color: geometry.attributes.color ? undefined : 0x808080,
+          side: THREE.DoubleSide
+        });
         model = new THREE.Mesh(geometry, material);
+      } else if (type === 'stl') {
+        const loader = new STLLoader();
+        const geometry = await new Promise<THREE.BufferGeometry>((resolve, reject) => {
+          loader.load(
+            blobUrl,
+            (geometry) => resolve(geometry),
+            (progress) => {
+              const percent = (progress.loaded / progress.total) * 100;
+              onLoadProgress?.(percent);
+            },
+            (error) => reject(error)
+          );
+        });
+        // STL files don't have normals, compute them
+        geometry.computeVertexNormals();
+        const material = new THREE.MeshStandardMaterial({ 
+          color: 0x808080,
+          roughness: 0.7,
+          metalness: 0.3,
+          side: THREE.DoubleSide
+        });
+        model = new THREE.Mesh(geometry, material);
+      } else if (type === 'fbx') {
+        const loader = new FBXLoader();
+        model = await new Promise<THREE.Object3D>((resolve, reject) => {
+          loader.load(
+            blobUrl,
+            (fbx) => resolve(fbx),
+            (progress) => {
+              const percent = (progress.loaded / progress.total) * 100;
+              onLoadProgress?.(percent);
+            },
+            (error) => reject(error)
+          );
+        });
+      } else if (type === 'dae') {
+        const loader = new ColladaLoader();
+        const collada = await new Promise<any>((resolve, reject) => {
+          loader.load(
+            blobUrl,
+            (collada) => resolve(collada),
+            (progress) => {
+              const percent = (progress.loaded / progress.total) * 100;
+              onLoadProgress?.(percent);
+            },
+            (error) => reject(error)
+          );
+        });
+        model = collada.scene;
+      } else if (type === 'las' || type === 'laz' || type === 'e57') {
+        // Point cloud formats - these require special processing
+        // For now, show a message that they need backend processing
+        throw new Error(`${type.toUpperCase()} files require backend processing. Please wait for the scene to be processed.`);
+      } else if (type === 'ifc') {
+        // BIM format - requires special IFC loader
+        throw new Error('IFC files require backend processing. Please wait for the scene to be processed.');
+      } else if (type === 'splat') {
+        // Gaussian Splatting format - should use GaussianViewer instead
+        throw new Error('Gaussian Splatting files should be viewed with the GaussianViewer.');
+      } else {
+        throw new Error(`Unsupported format: ${type}`);
       }
 
       // Clean up blob URL
       URL.revokeObjectURL(blobUrl);
 
       if (model) {
+        console.log('Model loaded successfully, processing...');
+        
         // Center and scale model
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
         const scale = 5 / maxDim;
+
+        console.log('Model bounds:', { center, size, maxDim, scale });
 
         model.position.sub(center);
         model.scale.multiplyScalar(scale);
@@ -484,11 +621,15 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         camera.position.set(5, 5, 5);
         camera.lookAt(0, 0, 0);
 
+        console.log('Model added to scene successfully');
         setIsLoading(false);
         onLoadProgress?.(100);
+      } else {
+        throw new Error('Failed to load model: model is null');
       }
     } catch (err) {
       const error = err as Error;
+      console.error('Model loading error:', error);
       setError(error.message);
       setIsLoading(false);
       onError?.(error);

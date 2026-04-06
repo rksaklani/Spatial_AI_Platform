@@ -276,6 +276,48 @@ export function ViewerPage() {
     );
   }
 
+  // Check if scene is still processing
+  if (scene && scene.status === 'processing') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-primary-bg">
+        <div className="text-center">
+          <div className="mb-4">
+            <svg className="animate-spin h-12 w-12 text-accent-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">Processing Video</h2>
+          <p className="text-text-secondary mb-4">Your video is being converted to 3D. This may take 20-60 minutes.</p>
+          <p className="text-text-muted text-sm">You can close this page and come back later.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if scene processing failed
+  if (scene && scene.status === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-primary-bg">
+        <div className="text-center max-w-md">
+          <div className="mb-4">
+            <svg className="h-12 w-12 text-red-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">Processing Failed</h2>
+          <p className="text-text-secondary mb-4">There was an error processing your video. Please try uploading again.</p>
+          <button
+            onClick={() => window.location.href = '/app/scenes'}
+            className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors"
+          >
+            Back to Scenes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-screen relative">
       {/* Share Button - Fixed Position */}
@@ -301,19 +343,24 @@ export function ViewerPage() {
         }
         
         const isImportedModel = scene?.sourceType === 'import';
-        const isModelFormat = format && ['glb', 'gltf', 'obj', 'ply', 'fbx', 'dae', 'stl'].includes(format.toLowerCase());
+        const isModelFormat = format && ['glb', 'gltf', 'obj', 'ply', 'stl', 'fbx', 'dae'].includes(format.toLowerCase());
+        const isPointCloud = format && ['las', 'laz', 'e57'].includes(format.toLowerCase());
+        const isBIM = format && ['ifc'].includes(format.toLowerCase());
+        const isSplat = format && ['splat'].includes(format.toLowerCase());
+        const isVideoScene = scene?.sourceType === 'video';
         
         console.log('Scene format:', format, 'isModelFormat:', isModelFormat, 'sourceType:', scene?.sourceType, 'isImportedModel:', isImportedModel);
         
-        // Use ModelViewer for imported 3D models
-        return (isModelFormat || isImportedModel) ? (
+        // Use ModelViewer for direct 3D models (GLB, GLTF, OBJ, PLY, STL, FBX, DAE)
+        // Use GaussianViewer for point clouds (LAS, LAZ, E57), BIM (IFC), and Gaussian Splats
+        return (isModelFormat && !isPointCloud && !isBIM && !isSplat) ? (
           <>
             {console.log('Rendering ModelViewer for format:', format, 'URL:', scene?.fileUrl, 'Scene:', scene)}
             <ModelViewer
               sceneId={sceneId}
               token={token}
               modelUrl={scene?.fileUrl || `/api/v1/scenes/${sceneId}/download`}
-              modelType={(format?.toLowerCase() || 'glb') as 'glb' | 'gltf' | 'obj' | 'ply' | 'splat'}
+              modelType={(format?.toLowerCase() || 'glb') as 'glb' | 'gltf' | 'obj' | 'ply' | 'stl' | 'fbx' | 'dae' | 'splat' | 'las' | 'laz' | 'e57' | 'ifc'}
               onError={(error) => console.error('Viewer error:', error)}
               onLoadProgress={(progress) => console.log('Load progress:', progress)}
               onSceneReady={handleSceneReady}
@@ -336,8 +383,8 @@ export function ViewerPage() {
               onError={(error) => console.error('Viewer error:', error)}
               onLoadProgress={(progress) => console.log('Load progress:', progress)}
               onFpsUpdate={handleFpsUpdate}
-              enableBIMVisualization={true}
-              enable2DOverlays={true}
+              enableBIMVisualization={isBIM}
+              enable2DOverlays={!isVideoScene}
               enableAnimations={true}
               onSceneReady={handleSceneReady}
               onCanvasClick={handleAnnotationClick}

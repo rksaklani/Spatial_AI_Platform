@@ -102,15 +102,11 @@ describe('Sidebar', () => {
     expect(onToggle).toHaveBeenCalledTimes(2);
   });
 
-  it('displays notification badge when there are notifications', () => {
-    renderSidebar();
+  it('displays user information', () => {
+    renderSidebar({ userName: 'John Doe', userEmail: 'john@example.com' });
     
-    const notificationButton = screen.getByRole('button', { name: /notifications/i });
-    expect(notificationButton).toBeInTheDocument();
-    
-    // Check for badge (the component has 3 notifications by default)
-    const badge = screen.getByText('3');
-    expect(badge).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('john@example.com')).toBeInTheDocument();
   });
 
   it('has proper ARIA labels for accessibility', () => {

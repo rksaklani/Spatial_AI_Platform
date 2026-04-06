@@ -24,13 +24,14 @@ export function ImportDialog({ open, onClose, onImportComplete }: ImportDialogPr
   const [sceneName, setSceneName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [isImportComplete, setIsImportComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: formatsData } = useGetSupportedFormatsQuery();
   const [uploadFile, { isLoading: isUploading }] = useUpload3DFileMutation();
   const { data: statusData } = useGetImportStatusQuery(jobId || '', {
-    skip: !jobId,
-    pollingInterval: 2000,
+    skip: !jobId || isImportComplete,
+    pollingInterval: isImportComplete ? 0 : 2000, // Stop polling when complete
   });
 
   const handleClose = () => {
@@ -38,14 +39,17 @@ export function ImportDialog({ open, onClose, onImportComplete }: ImportDialogPr
     setSceneName('');
     setError(null);
     setJobId(null);
+    setIsImportComplete(false);
     onClose();
   };
 
   useEffect(() => {
     if (statusData?.status === 'completed') {
+      setIsImportComplete(true); // Stop polling
       onImportComplete?.(statusData.scene_id);
       handleClose();
     } else if (statusData?.status === 'failed') {
+      setIsImportComplete(true); // Stop polling
       setError(statusData.error || 'Import failed');
       setJobId(null);
     }

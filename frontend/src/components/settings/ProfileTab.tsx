@@ -56,7 +56,7 @@ export function ProfileTab() {
       {/* Profile Information */}
       <div>
         <h3 className="text-lg font-medium text-text-primary mb-4">Profile Information</h3>
-        <div className="space-y-4 max-w-md">
+        <div className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
               Full Name
@@ -94,7 +94,7 @@ export function ProfileTab() {
       {/* Change Password */}
       <div className="pt-8 border-t border-border-subtle">
         <h3 className="text-lg font-medium text-text-primary mb-4">Change Password</h3>
-        <div className="space-y-4 max-w-md">
+        <div className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
               Current Password

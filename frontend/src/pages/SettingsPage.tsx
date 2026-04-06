@@ -21,7 +21,7 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-text-primary mb-2">Settings</h1>
         <p className="text-text-secondary">Manage your profile and preferences</p>

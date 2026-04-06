@@ -60,6 +60,8 @@ export function AppLayout() {
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          userName={user?.name || 'User'}
+          userEmail={user?.email || 'user@example.com'}
         />
       )}
 
@@ -68,8 +70,8 @@ export function AppLayout() {
         className={`transition-all duration-300 pt-20 ${
           shouldShowSidebar
             ? isSidebarCollapsed
-              ? 'ml-16'
-              : 'ml-64'
+              ? 'ml-20'
+              : 'ml-72'
             : 'ml-0'
         } ${isMobile ? 'pb-20' : ''}`}
       >

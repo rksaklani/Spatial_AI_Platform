@@ -23,13 +23,15 @@ interface ProcessingProgressProps {
 }
 
 export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingProgressProps) {
-  const { data: jobs, isLoading } = useGetSceneJobsQuery(sceneId, {
-    pollingInterval: 2000, // Poll every 2 seconds
-  });
-
   const [currentStage, setCurrentStage] = useState<string>('upload');
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [isJobComplete, setIsJobComplete] = useState(false);
+
+  const { data: jobs, isLoading } = useGetSceneJobsQuery(sceneId, {
+    pollingInterval: isJobComplete ? 0 : 2000, // Stop polling when complete
+    skip: isJobComplete, // Skip query when complete
+  });
 
   useEffect(() => {
     if (!jobs || jobs.length === 0) return;
@@ -38,10 +40,11 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     const latestJob = jobs[0];
 
     if (latestJob.status === 'failed') {
-      const errorMsg = latestJob.error || 'Processing failed';
+      const errorMsg = latestJob.error_message || latestJob.error || 'Processing failed';
       // Only set error and call onError once
       if (error !== errorMsg) {
         setError(errorMsg);
+        setIsJobComplete(true); // Stop polling
         onError?.(errorMsg);
       }
       return;
@@ -50,6 +53,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     if (latestJob.status === 'completed') {
       setProgress(100);
       setCurrentStage('completed');
+      setIsJobComplete(true); // Stop polling
       onComplete?.();
       return;
     }
