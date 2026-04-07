@@ -181,7 +181,7 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         # Update status
         update_job_progress(job_id, "running", 0, "initializing", "Starting pipeline")
-        update_scene_status(scene_id, "extracting_frames", "Starting video processing")
+        update_scene_status(scene_id, "extracting_frames", "Starting processing")
         
         # Get scene data
         scene = get_scene_data(scene_id)
@@ -190,54 +190,89 @@ def process_video_pipeline(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         
         organization_id = scene["organization_id"]
         source_path = scene["source_path"]
+        source_type = scene.get("source_type", "video")
         
         # Create temporary working directory
         work_dir = tempfile.mkdtemp(prefix=f"scene_{scene_id}_")
         logger.info(f"Working directory: {work_dir}")
         
-        # Step 1: Download video from MinIO
-        update_job_progress(job_id, "running", 5, "downloading", "Downloading video from storage")
-        
-        video_path = download_video(scene_id, organization_id, source_path, work_dir)
-        logger.info(f"Video downloaded: {video_path}")
-        
-        # Step 2: Extract frames
-        update_job_progress(job_id, "running", 10, "extracting_frames", "Extracting frames from video")
-        update_scene_status(scene_id, "extracting_frames", "Extracting video frames")
-        
         frames_dir = os.path.join(work_dir, "frames")
         os.makedirs(frames_dir, exist_ok=True)
         
-        frame_result = extract_frames(video_path, frames_dir, fps=3)
-        frame_count = frame_result["frame_count"]
-        video_metadata = frame_result["video_metadata"]
+        # Check if this is a photo batch upload (skip frame extraction)
+        if source_type == "images":
+            logger.info(f"Processing photo batch upload for scene {scene_id}")
+            
+            # Copy photos from source_path to frames_dir
+            update_job_progress(job_id, "running", 10, "loading_photos", "Loading photos")
+            
+            import shutil
+            from pathlib import Path
+            
+            source_dir = Path(source_path)
+            if not source_dir.exists():
+                raise ValueError(f"Photo source directory not found: {source_path}")
+            
+            # Copy all image files
+            photo_files = []
+            for img_file in sorted(source_dir.glob("*")):
+                if img_file.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+                    shutil.copy2(img_file, frames_dir)
+                    photo_files.append(img_file.name)
+            
+            frame_count = len(photo_files)
+            valid_frames = photo_files
+            valid_count = frame_count
+            
+            logger.info(f"Loaded {frame_count} photos from {source_path}")
+            update_scene_status(scene_id, "estimating_poses", f"Loaded {frame_count} photos",
+                              metrics={"frame_count": frame_count, "valid_frame_count": frame_count})
+            
+            # Skip to pose estimation (Step 5)
+            video_metadata = None
+            
+        else:
+            # Original video processing path
+            # Step 1: Download video from MinIO
+            update_job_progress(job_id, "running", 5, "downloading", "Downloading video from storage")
+            
+            video_path = download_video(scene_id, organization_id, source_path, work_dir)
+            logger.info(f"Video downloaded: {video_path}")
+            
+            # Step 2: Extract frames
+            update_job_progress(job_id, "running", 10, "extracting_frames", "Extracting frames from video")
+            update_scene_status(scene_id, "extracting_frames", "Extracting video frames")
+            
+            frame_result = extract_frames(video_path, frames_dir, fps=3)
+            frame_count = frame_result["frame_count"]
+            video_metadata = frame_result["video_metadata"]
+            
+            logger.info(f"Extracted {frame_count} frames")
+            update_scene_status(scene_id, "extracting_frames", f"Extracted {frame_count} frames", 
+                              metrics={"frame_count": frame_count})
+            
+            # Step 3: Filter frames (blur/motion detection)
+            update_job_progress(job_id, "running", 25, "filtering_frames", "Analyzing frame quality")
+            
+            filter_result = filter_frames(frames_dir)
+            valid_frames = filter_result["valid_frames"]
+            valid_count = len(valid_frames)
+            avg_motion = filter_result.get("average_motion_score", 0.0)
+            
+            logger.info(f"Valid frames after filtering: {valid_count}/{frame_count}")
+            logger.info(f"Average motion score: {avg_motion:.2f}")
+            update_scene_status(scene_id, "estimating_poses", f"Filtered to {valid_count} valid frames",
+                              metrics={
+                                  "valid_frame_count": valid_count,
+                                  "average_motion_score": avg_motion
+                              })
+            
+            # Step 4: Upload frames to MinIO
+            update_job_progress(job_id, "running", 35, "uploading_frames", "Uploading frames to storage")
+            
+            upload_frames(scene_id, frames_dir, valid_frames)
         
-        logger.info(f"Extracted {frame_count} frames")
-        update_scene_status(scene_id, "extracting_frames", f"Extracted {frame_count} frames", 
-                          metrics={"frame_count": frame_count})
-        
-        # Step 3: Filter frames (blur/motion detection)
-        update_job_progress(job_id, "running", 25, "filtering_frames", "Analyzing frame quality")
-        
-        filter_result = filter_frames(frames_dir)
-        valid_frames = filter_result["valid_frames"]
-        valid_count = len(valid_frames)
-        avg_motion = filter_result.get("average_motion_score", 0.0)
-        
-        logger.info(f"Valid frames after filtering: {valid_count}/{frame_count}")
-        logger.info(f"Average motion score: {avg_motion:.2f}")
-        update_scene_status(scene_id, "estimating_poses", f"Filtered to {valid_count} valid frames",
-                          metrics={
-                              "valid_frame_count": valid_count,
-                              "average_motion_score": avg_motion
-                          })
-        
-        # Step 4: Upload frames to MinIO
-        update_job_progress(job_id, "running", 35, "uploading_frames", "Uploading frames to storage")
-        
-        upload_frames(scene_id, frames_dir, valid_frames)
-        
-        # Step 5: Camera pose estimation (COLMAP)
+        # Step 5: Camera pose estimation (COLMAP) - Common for both video and photos
         update_job_progress(job_id, "running", 45, "pose_estimation", "Estimating camera poses")
         update_scene_status(scene_id, "estimating_poses", "Running camera pose estimation")
         
@@ -732,7 +767,7 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
     Args:
         frames_dir: Directory containing frames
         valid_frames: List of valid frame filenames
-        output_dir: Directory to save sparse reconstruction
+        output_dir: Directory to save sparse reconstruction (this IS the sparse dir)
         
     Returns:
         Dict with camera count and point count
@@ -740,12 +775,14 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
     import subprocess
     
     # Create COLMAP workspace
+    # output_dir is already the sparse directory, so don't add another /sparse
     images_dir = os.path.join(output_dir, "images")
     database_path = os.path.join(output_dir, "database.db")
-    sparse_dir = os.path.join(output_dir, "sparse")
+    # COLMAP will create output_dir/0/ for the reconstruction
+    colmap_output_dir = output_dir  # This is where COLMAP will create the /0/ subdirectory
     
     os.makedirs(images_dir, exist_ok=True)
-    os.makedirs(sparse_dir, exist_ok=True)
+    os.makedirs(colmap_output_dir, exist_ok=True)
     
     # Copy valid frames to COLMAP images directory
     for filename in valid_frames:
@@ -786,18 +823,36 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
             "colmap", "mapper",
             "--database_path", database_path,
             "--image_path", images_dir,
-            "--output_path", sparse_dir,
+            "--output_path", colmap_output_dir,
             "--Mapper.ba_refine_focal_length", "0",  # Don't refine focal length
             "--Mapper.ba_refine_extra_params", "0",  # Don't refine distortion
-            "--Mapper.min_num_matches", "5",  # Very low threshold (default 15)
-            "--Mapper.init_min_num_inliers", "25",  # Very low threshold (default 100)
-            "--Mapper.init_max_error", "8",  # More lenient error (default 4)
-            "--Mapper.abs_pose_max_error", "20",  # More lenient error (default 12)
+            "--Mapper.min_num_matches", "3",  # VERY low threshold (default 15)
+            "--Mapper.init_min_num_inliers", "10",  # VERY low threshold (default 100)
+            "--Mapper.init_max_error", "12",  # Very lenient error (default 4)
+            "--Mapper.abs_pose_max_error", "30",  # Very lenient error (default 12)
+            "--Mapper.init_min_tri_angle", "2",  # Lower triangulation angle (default 4)
+            "--Mapper.multiple_models", "0",  # Only create one model
+            "--Mapper.max_num_models", "1",  # Maximum one model
         ], check=True, capture_output=True, text=True)
         logger.info(f"Mapper completed: {result.stdout}")
         
+        # Convert text format to binary format (required for Gaussian Splatting)
+        model_dir = os.path.join(colmap_output_dir, "0")
+        if os.path.exists(model_dir):
+            logger.info("Converting COLMAP model from text to binary format...")
+            try:
+                result = subprocess.run([
+                    "colmap", "model_converter",
+                    "--input_path", model_dir,
+                    "--output_path", model_dir,
+                    "--output_type", "BIN"
+                ], check=True, capture_output=True, text=True)
+                logger.info(f"Model conversion completed: {result.stdout}")
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Model conversion failed (may already be binary): {e}")
+        
         # Count cameras and points from reconstruction
-        model_dir = os.path.join(sparse_dir, "0")
+        model_dir = os.path.join(colmap_output_dir, "0")
         if os.path.exists(model_dir):
             # Parse cameras.txt
             cameras_file = os.path.join(model_dir, "cameras.txt")
@@ -830,14 +885,26 @@ def estimate_camera_poses(frames_dir: str, valid_frames: list, output_dir: str) 
         if hasattr(e, 'stdout') and e.stdout:
             logger.error(f"COLMAP stdout: {e.stdout}")
     
-    # Fallback: assume all frames have cameras (no actual pose estimation)
-    logger.warning("Using fallback pose estimation (no COLMAP reconstruction)")
-    return {
-        "camera_count": len(valid_frames),
-        "point_count": 0,
-        "success": False,
-        "fallback": True,
-    }
+    # Fallback: COLMAP failed to create reconstruction
+    logger.error("COLMAP failed to create 3D reconstruction!")
+    logger.error("This usually means:")
+    logger.error("  1. Video is too short (need at least 20-30 frames)")
+    logger.error("  2. Not enough camera movement between frames")
+    logger.error("  3. Scene lacks distinctive features")
+    logger.error("  4. Frames are too blurry or similar")
+    logger.error("")
+    logger.error("Suggestions:")
+    logger.error("  - Use a longer video (at least 10 seconds)")
+    logger.error("  - Move the camera more while recording")
+    logger.error("  - Ensure good lighting and focus")
+    logger.error("  - Capture a scene with clear features/textures")
+    
+    # Return failure - don't create fake reconstruction
+    raise RuntimeError(
+        "COLMAP failed to create 3D reconstruction. "
+        "Video needs more frames and camera movement. "
+        "Try a longer video (10+ seconds) with more camera motion."
+    )
 
 
 def upload_sparse_data(scene_id: str, sparse_dir: str):
@@ -851,11 +918,15 @@ def upload_sparse_data(scene_id: str, sparse_dir: str):
         minio.create_bucket("scenes")
     
     # Upload all files in sparse directory
+    # sparse_dir typically contains: sparse/0/cameras.bin, sparse/0/images.bin, etc.
+    # We want to upload to: scene_id/sparse/0/cameras.bin (not scene_id/sparse/sparse/0/)
     for root, dirs, files in os.walk(sparse_dir):
         for filename in files:
             local_path = os.path.join(root, filename)
-            rel_path = os.path.relpath(local_path, sparse_dir)
-            object_name = f"{scene_id}/sparse/{rel_path}"
+            # Get path relative to parent of sparse_dir to preserve sparse/0/ structure
+            parent_dir = os.path.dirname(sparse_dir)
+            rel_path = os.path.relpath(local_path, parent_dir)
+            object_name = f"{scene_id}/{rel_path}"
             minio.upload_file("scenes", object_name, local_path)
     
     logger.info(f"Uploaded sparse reconstruction for scene {scene_id}")

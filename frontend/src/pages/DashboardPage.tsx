@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/common/Button';
 import { ToastContainer } from '../components/common/Toast';
 import { SceneGrid } from '../components/dashboard/SceneGrid';
-import { UploadDialog } from '../components/dashboard/UploadDialog';
+import { UploadDialogWithConfig } from '../components/dashboard/UploadDialogWithConfig';
 import { SceneEditDialog } from '../components/dashboard/SceneEditDialog';
 import { DeleteSceneDialog } from '../components/dashboard/DeleteSceneDialog';
 import { FilterBar } from '../components/dashboard/FilterBar';
@@ -182,7 +182,7 @@ export function DashboardPage() {
                 </svg>
               }
             >
-              New Scene
+              Upload Video or Photos
             </Button>
           </div>
         </div>
@@ -267,7 +267,7 @@ export function DashboardPage() {
       </div>
 
       {/* Upload Dialog */}
-      <UploadDialog
+      <UploadDialogWithConfig
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onUpload={handleUpload}

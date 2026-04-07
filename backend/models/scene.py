@@ -27,9 +27,10 @@ class SceneStatus(str, Enum):
 class SceneType(str, Enum):
     """Type of scene source."""
     VIDEO = "video"
-    IMAGES = "images"
+    IMAGES = "images"  # Photo batch upload
     POINT_CLOUD = "point_cloud"
     MESH = "mesh"
+    IMPORT = "import"  # Imported 3D files
 
 
 class VideoMetadata(BaseModel):

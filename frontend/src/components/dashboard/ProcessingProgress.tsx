@@ -123,8 +123,32 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
   useEffect(() => {
     if (!jobs || jobs.length === 0) return;
 
+    // Check if there are multiple jobs for this scene
+    const hasMultipleJobs = jobs.length > 1;
+    
     // Get the most recent job
     const latestJob = jobs[0];
+    
+    // If there are multiple jobs, check if ANY are still pending/queued/running
+    if (hasMultipleJobs) {
+      const hasActiveJobs = jobs.some(job => 
+        ['pending', 'queued', 'running', 'processing'].includes(job.status)
+      );
+      
+      // If there are active jobs, don't mark as complete even if latest job is done
+      if (hasActiveJobs) {
+        // Find the first active job to show its progress
+        const activeJob = jobs.find(job => 
+          ['pending', 'queued', 'running', 'processing'].includes(job.status)
+        );
+        
+        if (activeJob) {
+          setCurrentStage(activeJob.current_step || activeJob.status);
+          setProgress(activeJob.progress_percent || 0);
+        }
+        return;
+      }
+    }
 
     if (latestJob.status === 'failed') {
       const errorMsg = latestJob.error_message || latestJob.error || 'Processing failed';

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGetScenesQuery, useDeleteSceneMutation } from '../store/api/sceneApi';
 import { Button } from '../components/common/Button';
 import { SceneGrid } from '../components/dashboard/SceneGrid';
-import { UploadDialog } from '../components/dashboard/UploadDialog';
+import { UploadDialogWithConfig } from '../components/dashboard/UploadDialogWithConfig';
 import { ImportDialog } from '../components/dashboard/ImportDialog';
 import { ProcessingProgress } from '../components/dashboard/ProcessingProgress';
 import { ShareDialog } from '../components/sharing/ShareDialog';
@@ -191,7 +191,7 @@ export function ScenesPage() {
             }}
             icon={<ArrowUpTrayIcon className="h-5 w-5" />}
           >
-            Upload Video
+            Upload Video or Photos
           </Button>
         </div>
       </div>
@@ -289,7 +289,7 @@ export function ScenesPage() {
         </div>
       )}
 
-      <UploadDialog
+      <UploadDialogWithConfig
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onUpload={async () => {}}

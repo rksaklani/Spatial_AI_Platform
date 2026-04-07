@@ -8,25 +8,44 @@ Implements neural radiance field reconstruction using 3D Gaussian Splatting:
 """
 
 import os
+import sys
 import time
 import tempfile
 import shutil
 import json
+import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 import numpy as np
 
+# Add backend directory to Python path for imports
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from celery.utils.log import get_task_logger
 from workers.celery_app import celery_app
 from workers.base_task import SpatialAIBaseTask
+from services.progress_tracker import TrainingProgressTracker
+from services.progress_service import get_progress_service
+from utils.config import settings
+from utils.minio_client import get_minio_client
+from models.progress import ProgressEvent
 
 logger = get_task_logger(__name__)
 
 
-def update_job_progress(job_id: str, progress: float, step: str, message: str = None):
+def update_job_progress(
+    job_id: str, 
+    progress: float, 
+    step: str, 
+    message: str = None,
+    current_iteration: int = None,
+    total_iterations: int = None,
+    estimated_seconds_remaining: float = None
+):
     """Update job progress in MongoDB."""
     from motor.motor_asyncio import AsyncIOMotorClient
-    from utils.config import settings
     import asyncio
     
     async def _update():
@@ -40,6 +59,12 @@ def update_job_progress(job_id: str, progress: float, step: str, message: str = 
         }
         if message:
             update_data["status_message"] = message
+        if current_iteration is not None:
+            update_data["current_iteration"] = current_iteration
+        if total_iterations is not None:
+            update_data["total_iterations"] = total_iterations
+        if estimated_seconds_remaining is not None:
+            update_data["estimated_seconds_remaining"] = estimated_seconds_remaining
         
         await db.processing_jobs.update_one(
             {"_id": job_id},
@@ -58,7 +83,6 @@ def update_job_progress(job_id: str, progress: float, step: str, message: str = 
 def update_scene_status(scene_id: str, status: str, message: str = None, metrics: dict = None):
     """Update scene status in MongoDB."""
     from motor.motor_asyncio import AsyncIOMotorClient
-    from utils.config import settings
     import asyncio
     
     async def _update():
@@ -487,7 +511,7 @@ def train_gaussians_real(
     logger.info(f"Starting REAL Gaussian Splatting training for {num_iterations} iterations")
     
     # Check if gaussian-splatting is installed
-    gs_repo_path = os.environ.get("GAUSSIAN_SPLATTING_PATH", "/opt/gaussian-splatting")
+    gs_repo_path = settings.gaussian_splatting_path or "/opt/gaussian-splatting"
     train_script = os.path.join(gs_repo_path, "train.py")
     
     if not os.path.exists(train_script):
@@ -552,7 +576,6 @@ def train_gaussians_real(
     ]
     
     # Check device preference from settings
-    from utils.config import settings
     force_cpu = settings.gaussian_splatting_force_cpu
     
     # Add GPU flag if available
@@ -690,10 +713,6 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
     num_iterations = 7000  # Default number of training iterations
     
     # Initialize progress tracker
-    from services.progress_tracker import TrainingProgressTracker
-    from services.progress_service import get_progress_service
-    from utils.config import settings
-    
     tracker = TrainingProgressTracker(
         scene_id=scene_id,
         job_id=job_id,
@@ -716,7 +735,6 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         # Download sparse reconstruction from MinIO
         update_job_progress(job_id, 5, "downloading", "Downloading sparse data and frames")
         
-        from utils.minio_client import get_minio_client
         minio = get_minio_client()
         
         sparse_dir = os.path.join(work_dir, "sparse")
@@ -727,9 +745,9 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         try:
             objects = minio.client.list_objects("scenes", prefix=f"{scene_id}/sparse/", recursive=True)
             for obj in objects:
-                # Remove scene_id/sparse/ prefix to get the correct local path
-                # MinIO: scene_id/sparse/sparse/0/cameras.bin -> Local: sparse/0/cameras.bin
-                local_path = os.path.join(work_dir, obj.object_name.replace(f"{scene_id}/sparse/", ""))
+                # Remove scene_id/ prefix to get the correct local path
+                # MinIO: scene_id/sparse/0/cameras.bin -> Local: sparse/0/cameras.bin
+                local_path = os.path.join(work_dir, obj.object_name.replace(f"{scene_id}/", ""))
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 minio.download_file("scenes", obj.object_name, local_path)
             
@@ -761,7 +779,14 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
             raise RuntimeError(f"Cannot proceed without training frames: {e}")
         
         # Run REAL Gaussian Splatting training
-        update_job_progress(job_id, 15, "training", f"Training Gaussian Splatting ({num_iterations} iterations)")
+        update_job_progress(
+            job_id=job_id,
+            progress=15,
+            step="training",
+            message=f"Training Gaussian Splatting ({num_iterations} iterations)",
+            current_iteration=0,
+            total_iterations=num_iterations
+        )
         update_scene_status(scene_id, "reconstructing", "Running neural reconstruction")
         
         gs_output_dir = os.path.join(work_dir, "gaussian_output")
@@ -777,8 +802,21 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
                 
                 # Check if should broadcast
                 if tracker.should_broadcast():
-                    from models.progress import ProgressEvent
-                    from datetime import datetime
+                    
+                    # Calculate progress
+                    progress_percent = tracker.calculate_progress_percent()
+                    estimated_remaining = tracker.calculate_estimated_seconds_remaining()
+                    
+                    # Update job in database with iteration info
+                    update_job_progress(
+                        job_id=job_id,
+                        progress=15 + (progress_percent * 0.6),  # Training is 15-75% of total
+                        step="training",
+                        message=f"Training Gaussian Splatting ({num_iterations} iterations)",
+                        current_iteration=tracker.current_iteration,
+                        total_iterations=tracker.total_iterations,
+                        estimated_seconds_remaining=estimated_remaining
+                    )
                     
                     # Create progress event
                     event = ProgressEvent(
@@ -789,7 +827,7 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
                         status_message=f"Training Gaussian Splatting ({num_iterations} iterations)",
                         current_iteration=tracker.current_iteration,
                         total_iterations=tracker.total_iterations,
-                        estimated_seconds_remaining=tracker.calculate_estimated_seconds_remaining(),
+                        estimated_seconds_remaining=estimated_remaining,
                         timestamp=datetime.utcnow()
                     )
                     
@@ -904,8 +942,6 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            from models.progress import ProgressEvent
-            from datetime import datetime
             
             completion_event = ProgressEvent(
                 type="training_complete",
@@ -933,10 +969,8 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         try:
             from workers.scene_optimization import optimize_and_tile
             from motor.motor_asyncio import AsyncIOMotorClient
-            from utils.config import settings
             import asyncio
             import uuid
-            from datetime import datetime
             
             # Create tiling job
             async def create_tiling_job():
@@ -1056,8 +1090,6 @@ def reconstruct_scene(self, scene_id: str, job_id: str) -> Dict[str, Any]:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            from models.progress import ProgressEvent
-            from datetime import datetime
             
             failure_event = ProgressEvent(
                 type="training_failed",

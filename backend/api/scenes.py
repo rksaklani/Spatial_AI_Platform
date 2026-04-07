@@ -181,12 +181,197 @@ async def trigger_processing_job(scene_id: str, organization_id: str, db) -> str
 # Scene CRUD Endpoints
 # ============================================================================
 
+@router.post("/upload-photos", response_model=SceneResponse, status_code=status.HTTP_201_CREATED)
+async def upload_photos(
+    current_user: UserInDB = Depends(get_current_user),
+    files: List[UploadFile] = File(...),
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    pipeline_config: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Upload multiple photos to create a new scene.
+    
+    - Accepts JPG, PNG, JPEG formats
+    - Minimum 10 photos, maximum 1000 photos
+    - Maximum 50MB per photo
+    - Generates unique scene ID
+    - Stores photos locally
+    - Creates scene metadata in MongoDB
+    - Triggers processing pipeline (skips frame extraction)
+    """
+    import json
+    from models.pipeline_config import PipelineConfig, PRESET_BALANCED
+    from pathlib import Path
+    
+    db = await get_db()
+    
+    # Parse pipeline configuration
+    config = PRESET_BALANCED
+    if pipeline_config:
+        try:
+            config_dict = json.loads(pipeline_config)
+            config = PipelineConfig(**config_dict)
+            logger.info(f"Using custom pipeline config: preset={config.preset}")
+        except Exception as e:
+            logger.warning(f"Failed to parse pipeline config, using default: {e}")
+            config = PRESET_BALANCED
+    
+    # Get organization context
+    organization_id = current_user.organization_id or "default-org"
+    
+    # Validate files
+    ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+    ALLOWED_IMAGE_MIMETYPES = {"image/jpeg", "image/png"}
+    MAX_IMAGE_SIZE = 50 * 1024 * 1024  # 50MB per image
+    MIN_IMAGES = 10
+    MAX_IMAGES = 1000
+    
+    if len(files) < MIN_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Minimum {MIN_IMAGES} photos required for reconstruction"
+        )
+    
+    if len(files) > MAX_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_IMAGES} photos allowed"
+        )
+    
+    # Validate each file
+    total_size = 0
+    for file in files:
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="All files must have filenames"
+            )
+        
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file format: {file.filename}. Allowed: JPG, PNG"
+            )
+        
+        # Read file to check size
+        content = await file.read()
+        file_size = len(content)
+        
+        if file_size > MAX_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large: {file.filename} ({file_size / (1024*1024):.1f}MB). Max: 50MB"
+            )
+        
+        total_size += file_size
+        
+        # Reset file pointer for later reading
+        await file.seek(0)
+    
+    # Generate scene ID
+    scene_id = str(uuid.uuid4())
+    
+    # Create local storage directory
+    storage_dir = Path("storage/images") / organization_id / scene_id
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save all photos
+    saved_files = []
+    try:
+        for idx, file in enumerate(files):
+            # Generate sequential filename
+            ext = os.path.splitext(file.filename)[1].lower()
+            new_filename = f"image_{idx:04d}{ext}"
+            local_file_path = storage_dir / new_filename
+            
+            # Read and save
+            content = await file.read()
+            with open(local_file_path, "wb") as f:
+                f.write(content)
+            
+            saved_files.append(new_filename)
+            logger.info(f"Saved photo {idx+1}/{len(files)}: {new_filename}")
+        
+        logger.info(
+            f"Saved {len(saved_files)} photos for scene {scene_id}",
+            total_size_mb=total_size / (1024*1024)
+        )
+    except Exception as e:
+        logger.error(f"Failed to save photos: {e}")
+        # Cleanup on failure
+        if storage_dir.exists():
+            shutil.rmtree(storage_dir)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store photos: {str(e)}"
+        )
+    
+    # Create scene document
+    now = datetime.utcnow()
+    scene_name = name or f"Photo Scene {len(files)} images"
+    
+    scene_doc = {
+        "_id": scene_id,
+        "organization_id": organization_id,
+        "owner_id": current_user.id,
+        "name": scene_name,
+        "description": description,
+        "source_type": SceneType.IMAGES.value,
+        "source_format": "jpg/png",
+        "original_filename": f"{len(files)} photos",
+        "file_size_bytes": total_size,
+        "mime_type": "image/jpeg",
+        "source_path": str(storage_dir),
+        "frames_path": str(storage_dir),  # Photos are already frames
+        "depth_path": None,
+        "sparse_path": None,
+        "tiles_path": None,
+        "status": SceneStatus.UPLOADED.value,
+        "status_message": f"Uploaded {len(files)} photos successfully",
+        "error_message": None,
+        "video_metadata": None,
+        "processing_metrics": ProcessingMetrics(frame_count=len(files)).model_dump(),
+        "pipeline_config": config.model_dump(),
+        "is_public": False,
+        "thumbnail_path": None,
+        "created_at": now,
+        "updated_at": now,
+        "processing_started_at": None,
+        "processing_completed_at": None,
+    }
+    
+    await db.scenes.insert_one(scene_doc)
+    
+    logger.info(
+        "scene_created_from_photos",
+        scene_id=scene_id,
+        organization_id=organization_id,
+        owner_id=current_user.id,
+        photo_count=len(files)
+    )
+    
+    # Trigger processing pipeline (will skip frame extraction)
+    job_id = await trigger_processing_job(scene_id, organization_id, db)
+    
+    # Update scene with processing job reference
+    await db.scenes.update_one(
+        {"_id": scene_id},
+        {"$set": {"current_job_id": job_id, "updated_at": datetime.utcnow()}}
+    )
+    
+    return SceneResponse(**scene_doc)
+
+
 @router.post("/upload", response_model=SceneResponse, status_code=status.HTTP_201_CREATED)
 async def upload_video(
     current_user: UserInDB = Depends(get_current_user),
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
+    pipeline_config: Optional[str] = Form(None),  # JSON string of pipeline configuration
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -197,9 +382,30 @@ async def upload_video(
     - Generates unique scene ID
     - Stores video in MinIO
     - Creates scene metadata in MongoDB
-    - Triggers processing pipeline
+    - Triggers processing pipeline with custom configuration
     """
-    db = await get_db()
+    try:
+        import json
+        from models.pipeline_config import PipelineConfig, PRESET_BALANCED
+        
+        db = await get_db()
+    except Exception as e:
+        logger.error("upload_initialization_failed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initialize upload: {str(e)}"
+        )
+    
+    # Parse pipeline configuration
+    config = PRESET_BALANCED  # Default
+    if pipeline_config:
+        try:
+            config_dict = json.loads(pipeline_config)
+            config = PipelineConfig(**config_dict)
+            logger.info(f"Using custom pipeline config: preset={config.preset}")
+        except Exception as e:
+            logger.warning(f"Failed to parse pipeline config, using default: {e}")
+            config = PRESET_BALANCED
     
     # Get organization context
     # Temporarily allow uploads without organization for testing
@@ -290,6 +496,7 @@ async def upload_video(
         "error_message": None,
         "video_metadata": None,
         "processing_metrics": ProcessingMetrics().model_dump(),
+        "pipeline_config": config.model_dump(),  # Store pipeline configuration
         "is_public": False,
         "thumbnail_path": None,
         "created_at": now,
@@ -298,24 +505,42 @@ async def upload_video(
         "processing_completed_at": None,
     }
     
-    await db.scenes.insert_one(scene_doc)
-    
-    logger.info(
-        "scene_created",
-        scene_id=scene_id,
-        organization_id=organization_id,
-        owner_id=current_user.id,
-        filename=file.filename
-    )
+    try:
+        await db.scenes.insert_one(scene_doc)
+        
+        logger.info(
+            "scene_created",
+            scene_id=scene_id,
+            organization_id=organization_id,
+            owner_id=current_user.id,
+            filename=file.filename
+        )
+    except Exception as e:
+        logger.error("scene_creation_failed", scene_id=scene_id, error=str(e), exc_info=True)
+        # Clean up uploaded file
+        try:
+            import os
+            os.remove(source_path)
+        except:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create scene in database: {str(e)}"
+        )
     
     # Trigger processing pipeline
-    job_id = await trigger_processing_job(scene_id, organization_id, db)
-    
-    # Update scene with processing job reference
-    await db.scenes.update_one(
-        {"_id": scene_id},
-        {"$set": {"current_job_id": job_id, "updated_at": datetime.utcnow()}}
-    )
+    try:
+        job_id = await trigger_processing_job(scene_id, organization_id, db)
+        
+        # Update scene with processing job reference
+        await db.scenes.update_one(
+            {"_id": scene_id},
+            {"$set": {"current_job_id": job_id, "updated_at": datetime.utcnow()}}
+        )
+    except Exception as e:
+        logger.error("job_trigger_failed", scene_id=scene_id, error=str(e), exc_info=True)
+        # Scene is created but job failed - this is OK, job can be retried later
+        pass
     
     return SceneResponse(**scene_doc)
 
