@@ -50,6 +50,9 @@ export const SceneProgressIndicator: React.FC<SceneProgressIndicatorProps> = ({
       case 'processing':
       case 'running':
       case 'reconstructing':
+      case 'queued_reconstruction':
+      case 'tiling':
+      case 'queued_tiling':
       case 'training':
         return {
           color: 'bg-blue-100 text-blue-800',
@@ -84,7 +87,7 @@ export const SceneProgressIndicator: React.FC<SceneProgressIndicatorProps> = ({
   };
   
   const badgeInfo = getBadgeInfo();
-  const showProgress = ['processing', 'running', 'reconstructing', 'training'].includes(status);
+  const showProgress = ['processing', 'running', 'reconstructing', 'queued_reconstruction', 'tiling', 'queued_tiling', 'training'].includes(status);
   
   return (
     <div className="space-y-2">
@@ -124,7 +127,9 @@ function getStepLabel(step?: string): string {
     'estimating_depth': 'Estimating Depth',
     'training': 'Training',
     'reconstructing': 'Reconstructing',
+    'queued_reconstruction': 'Queued for Reconstruction',
     'tiling': 'Tiling',
+    'queued_tiling': 'Queued for Tiling',
     'optimizing': 'Optimizing',
   };
   

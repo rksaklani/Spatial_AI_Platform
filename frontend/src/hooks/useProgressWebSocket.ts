@@ -63,9 +63,25 @@ export const useProgressWebSocket = ({
     }
     
     // Determine WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || window.location.host;
-    const wsUrl = `${protocol}//${host}/api/v1/progress/scenes/${sceneId}?token=${encodeURIComponent(token)}`;
+    // Use VITE_WS_URL if available, otherwise construct from VITE_API_BASE_URL
+    let wsBaseUrl: string;
+    
+    if (import.meta.env.VITE_WS_URL) {
+      // Use explicit WebSocket URL from env
+      wsBaseUrl = import.meta.env.VITE_WS_URL;
+    } else if (import.meta.env.VITE_API_BASE_URL) {
+      // Construct from API base URL
+      const apiUrl = import.meta.env.VITE_API_BASE_URL;
+      const protocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+      const host = apiUrl.replace(/^https?:\/\//, '').replace(/\/api\/v1$/, '');
+      wsBaseUrl = `${protocol}//${host}`;
+    } else {
+      // Fallback to current host
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsBaseUrl = `${protocol}//${window.location.host}`;
+    }
+    
+    const wsUrl = `${wsBaseUrl}/api/v1/progress/scenes/${sceneId}?token=${encodeURIComponent(token)}`;
     
     console.log(`[ProgressWebSocket] Connecting to ${wsUrl}`);
     
@@ -126,8 +142,8 @@ export const useProgressWebSocket = ({
       console.error('[ProgressWebSocket] Error:', error);
     };
     
-    ws.onclose = () => {
-      console.log('[ProgressWebSocket] Disconnected');
+    ws.onclose = (event) => {
+      console.log('[ProgressWebSocket] Disconnected', event.code, event.reason);
       setIsConnected(false);
       
       // Clear heartbeat
@@ -136,16 +152,31 @@ export const useProgressWebSocket = ({
         heartbeatIntervalRef.current = null;
       }
       
-      // Attempt reconnection
-      if (enabled && reconnectAttemptsRef.current < maxReconnectAttempts) {
-        reconnectAttemptsRef.current++;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-        console.log(`[ProgressWebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, delay);
+      // Don't reconnect if:
+      // - Not enabled
+      // - Max reconnect attempts reached
+      // - Close code indicates permanent failure (4000-4999 are custom app codes)
+      // - Close code 1000 (normal closure) or 1001 (going away)
+      const shouldNotReconnect = 
+        !enabled || 
+        reconnectAttemptsRef.current >= maxReconnectAttempts ||
+        (event.code >= 4000 && event.code < 5000) ||
+        event.code === 1000 ||
+        event.code === 1001;
+      
+      if (shouldNotReconnect) {
+        console.log(`[ProgressWebSocket] Not reconnecting (code: ${event.code}, attempts: ${reconnectAttemptsRef.current})`);
+        return;
       }
+      
+      // Attempt reconnection
+      reconnectAttemptsRef.current++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+      console.log(`[ProgressWebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connect();
+      }, delay);
     };
   }, [sceneId, token, enabled, onProgressUpdate, onTrainingComplete, onTrainingFailed]);
   

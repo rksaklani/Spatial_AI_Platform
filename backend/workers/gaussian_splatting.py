@@ -551,10 +551,18 @@ def train_gaussians_real(
         "--quiet",  # Reduce output
     ]
     
+    # Check device preference from settings
+    from utils.config import settings
+    force_cpu = settings.gaussian_splatting_force_cpu
+    
     # Add GPU flag if available
     try:
         import torch
-        if torch.cuda.is_available():
+        if force_cpu:
+            logger.info("Forcing CPU mode for Gaussian Splatting (GAUSSIAN_SPLATTING_FORCE_CPU=true)")
+            # Note: gaussian-splatting doesn't have a --device flag, but we can disable CUDA
+            os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        elif torch.cuda.is_available():
             logger.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
             # gaussian-splatting uses CUDA by default if available
         else:

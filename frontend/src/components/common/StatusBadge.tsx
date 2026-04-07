@@ -8,7 +8,10 @@ export type SceneStatus =
   | 'estimating_poses'
   | 'generating_depth'
   | 'reconstructing'
-  | 'tiling' 
+  | 'queued_reconstruction'
+  | 'tiling'
+  | 'queued_tiling'
+  | 'optimizing'
   | 'ready'
   | 'completed' 
   | 'failed';
@@ -132,6 +135,17 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
         </svg>
       ),
     },
+    queued_reconstruction: {
+      label: 'Queued for Reconstruction',
+      bgColor: 'bg-purple-500/20',
+      textColor: 'text-purple-400',
+      borderColor: 'border-purple-500/30',
+      icon: (
+        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+        </svg>
+      ),
+    },
     tiling: {
       label: 'Tiling',
       bgColor: 'bg-purple-500/20',
@@ -152,6 +166,28 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
             fill="currentColor"
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           />
+        </svg>
+      ),
+    },
+    queued_tiling: {
+      label: 'Queued for Tiling',
+      bgColor: 'bg-purple-500/20',
+      textColor: 'text-purple-400',
+      borderColor: 'border-purple-500/30',
+      icon: (
+        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+        </svg>
+      ),
+    },
+    optimizing: {
+      label: 'Optimizing',
+      bgColor: 'bg-purple-500/20',
+      textColor: 'text-purple-400',
+      borderColor: 'border-purple-500/30',
+      icon: (
+        <svg className="h-3 w-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
         </svg>
       ),
     },

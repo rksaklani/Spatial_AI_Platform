@@ -41,8 +41,9 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     });
   };
 
-  const isViewable = scene.status === 'completed';
-  const isProcessing = ['uploaded', 'processing', 'extracting_frames', 'estimating_poses', 'generating_depth', 'reconstructing', 'tiling'].includes(scene.status);
+  const isViewable = scene.status === 'completed' || scene.status === 'ready';
+  const isProcessing = ['uploaded', 'processing', 'extracting_frames', 'estimating_poses', 'generating_depth', 'reconstructing', 'queued_reconstruction', 'tiling', 'queued_tiling', 'optimizing'].includes(scene.status);
+  const isFailed = scene.status === 'failed';
 
   const { data: jobs = [] } = useGetSceneJobsQuery(scene.sceneId, {
     pollingInterval: isProcessing ? 5000 : 0,
@@ -133,7 +134,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-center justify-center">
           <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            {isViewable ? 'View Scene' : isProcessing ? 'Processing...' : 'Failed'}
+            {isViewable ? 'View Scene' : isProcessing ? 'Processing...' : isFailed ? 'Failed' : 'View Scene'}
           </span>
         </div>
       </div>

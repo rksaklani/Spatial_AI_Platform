@@ -1,6 +1,8 @@
 """Configuration management using environment variables."""
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List, Optional
+import json
 
 
 class Settings(BaseSettings):
@@ -41,7 +43,23 @@ class Settings(BaseSettings):
     api_port: int = 8000
     base_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:5173"
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173","http://10.0.0.65:8000","http://localhost:9000"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    
+    @field_validator('cors_origins', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS_ORIGINS from JSON string or return as-is if already a list."""
+        if isinstance(v, str):
+            try:
+                # Try to parse as JSON
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+                return [v]  # Single string value
+            except json.JSONDecodeError:
+                # If not valid JSON, treat as comma-separated string
+                return [origin.strip() for origin in v.split(',') if origin.strip()]
+        return v
     
     # Environment
     environment: str = "development"
@@ -49,6 +67,7 @@ class Settings(BaseSettings):
     # GPU Configuration (for 3D reconstruction)
     cuda_visible_devices: Optional[str] = "0"
     gaussian_splatting_path: Optional[str] = None
+    gaussian_splatting_force_cpu: bool = False
     
     class Config:
         env_file = ".env"

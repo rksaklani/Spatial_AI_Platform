@@ -693,56 +693,87 @@ async def get_scene_progress(
     - Current processing step
     """
     from models.progress import ProgressResponse
+    import traceback
     
-    db = await get_db()
-    
-    # Verify scene exists and user has access
-    scene = await db.scenes.find_one({"_id": scene_id})
-    
-    if not scene:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scene not found"
+    try:
+        db = await get_db()
+        
+        # Verify scene exists and user has access
+        scene = await db.scenes.find_one({"_id": scene_id})
+        
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scene not found"
+            )
+        
+        if scene["organization_id"] != current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this scene"
+            )
+        
+        # Get latest processing job for the scene
+        job = await db.processing_jobs.find_one(
+            {"scene_id": scene_id},
+            sort=[("created_at", -1)]
         )
-    
-    if scene["organization_id"] != current_user.organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this scene"
+        
+        if not job:
+            # Return default progress for scenes without jobs
+            return ProgressResponse(
+                scene_id=scene_id,
+                progress_percent=0.0,
+                current_step="pending",
+                status_message="Waiting to start",
+                current_iteration=None,
+                total_iterations=None,
+                estimated_seconds_remaining=None,
+                started_at=None,
+                elapsed_seconds=None
+            )
+        
+        # Calculate elapsed time
+        elapsed_seconds = None
+        if job.get("started_at"):
+            elapsed = datetime.utcnow() - job["started_at"]
+            elapsed_seconds = elapsed.total_seconds()
+        
+        # Build response with safe defaults for required fields
+        response = ProgressResponse(
+            scene_id=scene_id,
+            progress_percent=job.get("progress_percent", 0.0),
+            current_step=job.get("current_step") or "pending",  # Ensure non-None string
+            status_message=scene.get("status_message") or "Processing",  # Ensure non-None string
+            current_iteration=job.get("current_iteration"),
+            total_iterations=job.get("total_iterations"),
+            estimated_seconds_remaining=job.get("estimated_seconds_remaining"),
+            started_at=job.get("started_at"),
+            elapsed_seconds=elapsed_seconds
         )
-    
-    # Get latest processing job for the scene
-    job = await db.processing_jobs.find_one(
-        {"scene_id": scene_id},
-        sort=[("created_at", -1)]
-    )
-    
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No processing job found for this scene"
+        
+        return response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log error and return safe fallback response
+        logger.error(f"Progress endpoint error: {str(e)}")
+        traceback.print_exc()
+        
+        # Return safe fallback instead of crashing
+        return ProgressResponse(
+            scene_id=scene_id,
+            progress_percent=0.0,
+            current_step="error",
+            status_message=f"Error retrieving progress: {str(e)}",
+            current_iteration=None,
+            total_iterations=None,
+            estimated_seconds_remaining=None,
+            started_at=None,
+            elapsed_seconds=None
         )
-    
-    # Calculate elapsed time
-    elapsed_seconds = None
-    if job.get("started_at"):
-        elapsed = datetime.utcnow() - job["started_at"]
-        elapsed_seconds = elapsed.total_seconds()
-    
-    # Build response
-    response = ProgressResponse(
-        scene_id=scene_id,
-        progress_percent=job.get("progress_percent", 0.0),
-        current_step=job.get("current_step", "pending"),
-        status_message=scene.get("status_message", "Processing"),
-        current_iteration=job.get("current_iteration"),
-        total_iterations=job.get("total_iterations"),
-        estimated_seconds_remaining=job.get("estimated_seconds_remaining"),
-        started_at=job.get("started_at"),
-        elapsed_seconds=elapsed_seconds
-    )
-    
-    return response
 
 
 # ============================================================================

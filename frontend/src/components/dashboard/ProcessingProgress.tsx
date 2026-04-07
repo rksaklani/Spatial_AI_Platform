@@ -46,7 +46,9 @@ function normalizeProcessingStep(step?: string | null): string {
 
   // Scene-level queued statuses sometimes leak into current_step
   if (['queued_reconstruction', 'queued_tiling'].includes(step)) {
-    return 'training';
+    // Map queued statuses to their corresponding active stages
+    if (step === 'queued_reconstruction') return 'training';
+    if (step === 'queued_tiling') return 'tiling';
   }
 
   return step;
@@ -71,7 +73,12 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     skip: isJobComplete, // Skip query when complete
   });
   
+  const latestJob = jobs?.[0];
+  
   // Use the new progress hook for real-time updates
+  // Only enable for scenes that are actually processing (not ready, completed, or failed)
+  const shouldEnableProgress = !isJobComplete && latestJob?.status !== 'failed' && latestJob?.status !== 'completed';
+  
   const {
     progressPercent,
     currentIteration,
@@ -85,12 +92,10 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
   } = useSceneProgress({
     sceneId,
     token: token || '',
-    enabled: !isJobComplete,
+    enabled: shouldEnableProgress,
     pollingInterval: 5000,
     enableWebSocket: true,
   });
-
-  const latestJob = jobs?.[0];
 
   // Prefer latest job step first (usually freshest), then websocket/rest fallback.
   const jobStep = latestJob?.current_step as string | undefined;

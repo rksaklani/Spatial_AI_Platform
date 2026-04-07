@@ -47,6 +47,38 @@ async def collaborate_on_scene(
     - Server sends: {"type": "active_users", "users": [...]}
     - Server sends: {"type": "error", "message": "..."}
     """
+    # Authenticate BEFORE accepting connection
+    if not token:
+        logger.warning(f"WebSocket connection rejected: no token provided for scene {scene_id}")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    
+    try:
+        authenticated_user = await get_current_user_ws(token)
+    except HTTPException as e:
+        logger.warning(f"WebSocket authentication failed for scene {scene_id}: {e.detail}")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    
+    # Verify scene exists and user has access
+    db = Database.get_db()
+    scene = await db.scenes.find_one({"_id": scene_id})
+    if not scene:
+        logger.warning(f"WebSocket connection rejected: scene {scene_id} not found")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    
+    # Check organization access
+    if scene["organization_id"] != authenticated_user.organization_id:
+        if not scene.get("is_public", False):
+            logger.warning(
+                f"WebSocket connection rejected: user {authenticated_user.id} "
+                f"denied access to scene {scene_id}"
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    
+    # Accept connection after authentication
     await websocket.accept()
     
     user_id = None
@@ -54,17 +86,6 @@ async def collaborate_on_scene(
     session_joined = False
     
     try:
-        # Verify scene exists
-        db = Database.get_db()
-        scene = await db.scenes.find_one({"_id": scene_id})
-        if not scene:
-            await websocket.send_json({
-                "type": "error",
-                "message": "Scene not found"
-            })
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        
         # Check concurrent user limit (50 users per scene)
         user_count = await collaboration_service.get_user_count(scene_id)
         if user_count >= 50:

@@ -132,15 +132,83 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     camera.position.set(5, 5, 5);
     cameraRef.current = camera;
 
-    // Create renderer
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: false,
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    // Create renderer with WebGL check
+    let renderer: THREE.WebGLRenderer;
+    try {
+      // Check if WebGL is available
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      
+      if (!gl) {
+        const errorMsg = 
+          'WebGL is disabled in your browser. To view 3D models:\n\n' +
+          '1. Open chrome://settings/system\n' +
+          '2. Enable "Use hardware acceleration when available"\n' +
+          '3. Restart your browser\n\n' +
+          'Your GPU (RTX 4090) is working fine, but the browser needs hardware acceleration enabled.';
+        
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      // For Gaussian Splatting, we need full WebGL (GPU)
+      // For other models, we can use lower power settings
+      const useHighPerformance = modelType === 'splat';
+      
+      renderer = new THREE.WebGLRenderer({
+        antialias: useHighPerformance,
+        alpha: false,
+        powerPreference: useHighPerformance ? 'high-performance' : 'low-power',
+        failIfMajorPerformanceCaveat: false,
+      });
+      
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(useHighPerformance ? Math.min(window.devicePixelRatio, 2) : 1);
+      container.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
+
+    } catch (error) {
+      console.error('Failed to create WebGL context:', error);
+      
+      // Show helpful error message with instructions
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        max-width: 500px;
+        text-align: center;
+        font-family: system-ui, -apple-system, sans-serif;
+      `;
+      errorDiv.innerHTML = `
+        <h3 style="margin: 0 0 1rem 0; color: #ff6b6b;">WebGL Not Available</h3>
+        <p style="margin: 0 0 1rem 0; font-size: 14px; line-height: 1.5;">
+          3D viewing requires WebGL, which is currently disabled in your browser.
+        </p>
+        <div style="text-align: left; font-size: 13px; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+          <strong>To enable WebGL:</strong><br/>
+          1. Open <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">chrome://settings/system</code><br/>
+          2. Enable "Use hardware acceleration"<br/>
+          3. Restart your browser
+        </div>
+        <p style="margin: 0; font-size: 12px; color: #aaa;">
+          Your GPU (RTX 4090) is working fine - this is just a browser setting.
+        </p>
+      `;
+      container.appendChild(errorDiv);
+      
+      setError('WebGL is not available. Please enable hardware acceleration in your browser settings.');
+      setIsLoading(false);
+      if (onError) {
+        onError(error as Error);
+      }
+      return;
+    }
 
     // Create controls
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -214,10 +282,34 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      controls.dispose();
-      renderer.dispose();
-      if (container && renderer.domElement.parentNode === container) {
-        container.removeChild(renderer.domElement);
+      
+      // Dispose of Three.js resources
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+      }
+      
+      // Dispose of geometries and materials
+      if (modelRef.current) {
+        modelRef.current.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(mat => mat.dispose());
+            } else if (mesh.material) {
+              mesh.material.dispose();
+            }
+          }
+        });
+      }
+      
+      // Dispose renderer and remove canvas
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current.forceContextLoss(); // Force WebGL context release
+        if (container && rendererRef.current.domElement.parentNode === container) {
+          container.removeChild(rendererRef.current.domElement);
+        }
       }
     };
   }, [sceneId, modelUrl, modelType]);

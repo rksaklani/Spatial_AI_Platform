@@ -412,7 +412,7 @@ async def download_tile(
     valkey = get_valkey_client()
     cache_key = f"tile:{scene_id}:{tile_id}"
     
-    cached_data = valkey.get_bytes(cache_key)
+    cached_data = valkey.get(cache_key)
     if cached_data:
         # Cache hit - return directly
         return Response(
@@ -442,8 +442,9 @@ async def download_tile(
         with open(temp_path, 'rb') as f:
             tile_data_bytes = f.read()
         
-        # Cache for 1 hour (3600 seconds)
-        valkey.set_bytes(cache_key, tile_data_bytes, ttl=3600)
+        # Cache for 1 hour (3600 seconds) - only if Valkey is enabled
+        if cached_data is not None or valkey._client is not None:
+            valkey.set(cache_key, tile_data_bytes, ttl=3600)
         
         # Return file
         return Response(

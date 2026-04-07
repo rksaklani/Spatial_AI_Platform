@@ -35,7 +35,7 @@ export function ScenesPage() {
   const { data: scenes = [], isLoading, refetch } = useGetScenesQuery();
   const [deleteScene] = useDeleteSceneMutation();
 
-  // Find scenes that are currently processing
+  // Find scenes that are currently processing (exclude the one being tracked separately)
   const processingScenes = useMemo(() => {
     const processingStatuses = [
       'uploaded',
@@ -43,13 +43,16 @@ export function ScenesPage() {
       'extracting_frames', 
       'estimating_poses', 
       'generating_depth', 
-      'reconstructing', 
-      'tiling'
+      'reconstructing',
+      'queued_reconstruction', // Scene waiting for Gaussian Splatting to start
+      'tiling',
+      'queued_tiling', // Scene waiting for tiling to start
+      'optimizing'
     ];
     return scenes.filter(scene => 
-      processingStatuses.includes(scene.status)
+      processingStatuses.includes(scene.status) && scene.sceneId !== processingSceneId
     );
-  }, [scenes]);
+  }, [scenes, processingSceneId]);
 
   const filteredScenes = useMemo(() => {
     let filtered = [...scenes];
