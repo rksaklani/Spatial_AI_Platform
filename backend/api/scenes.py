@@ -718,9 +718,17 @@ async def get_scene_progress(
     )
     
     if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No processing job found for this scene"
+        # Return a safe default instead of 404 so frontend polling does not fail-loop.
+        return ProgressResponse(
+            scene_id=scene_id,
+            progress_percent=0.0,
+            current_step="pending",
+            status_message=scene.get("status_message") or "Queued — waiting to start",
+            current_iteration=None,
+            total_iterations=None,
+            estimated_seconds_remaining=None,
+            started_at=None,
+            elapsed_seconds=None,
         )
     
     # Calculate elapsed time
@@ -729,12 +737,26 @@ async def get_scene_progress(
         elapsed = datetime.utcnow() - job["started_at"]
         elapsed_seconds = elapsed.total_seconds()
     
-    # Build response
+    # Build response with defensive defaults to avoid validation/runtime 500s
+    raw_progress = job.get("progress_percent", 0.0)
+    progress_percent = float(raw_progress) if raw_progress is not None else 0.0
+    if progress_percent < 0:
+        progress_percent = 0.0
+    if progress_percent > 100:
+        progress_percent = 100.0
+
+    current_step = job.get("current_step") or "pending"
+    status_message = (
+        job.get("status_message")
+        or scene.get("status_message")
+        or "Processing"
+    )
+
     response = ProgressResponse(
         scene_id=scene_id,
-        progress_percent=job.get("progress_percent", 0.0),
-        current_step=job.get("current_step", "pending"),
-        status_message=scene.get("status_message", "Processing"),
+        progress_percent=progress_percent,
+        current_step=str(current_step),
+        status_message=str(status_message),
         current_iteration=job.get("current_iteration"),
         total_iterations=job.get("total_iterations"),
         estimated_seconds_remaining=job.get("estimated_seconds_remaining"),

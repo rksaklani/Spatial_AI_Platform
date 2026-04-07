@@ -144,6 +144,7 @@ export function ScenesPage() {
   const handleProcessingComplete = () => {
     setProcessingSceneId(null);
     // Refetch scenes to get updated status
+    refetch();
   };
 
   const handleDeleteConfirm = async (sceneId: string) => {
@@ -219,7 +220,9 @@ export function ScenesPage() {
               <h3 className="text-lg font-semibold text-text-primary mb-4">{scene.name}</h3>
               <ProcessingProgress
                 sceneId={scene.sceneId}
-                onComplete={() => {}}
+                onComplete={() => {
+                  refetch();
+                }}
                 onError={(error) => console.error('Processing error:', error)}
               />
             </div>

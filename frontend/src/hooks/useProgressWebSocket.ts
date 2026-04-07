@@ -64,7 +64,10 @@ export const useProgressWebSocket = ({
     
     // Determine WebSocket URL
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || window.location.host;
+    const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+    const host = apiBase
+      ? apiBase.replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '')
+      : window.location.host;
     const wsUrl = `${protocol}//${host}/api/v1/progress/scenes/${sceneId}?token=${encodeURIComponent(token)}`;
     
     console.log(`[ProgressWebSocket] Connecting to ${wsUrl}`);

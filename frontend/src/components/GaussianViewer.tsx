@@ -109,6 +109,8 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   const tileManagerRef = useRef(getTileManager());
 
   const [isLoading, setIsLoading] = useState(true);
+  /** 0–100 while splat tiles are being fetched/decoded */
+  const [tileLoadPercent, setTileLoadPercent] = useState(0);
   const [fps, setFps] = useState(0);
   const [visibleGaussians, setVisibleGaussians] = useState(0);
   const [rendererType, setRendererType] = useState<'webgpu' | 'webgl2' | 'webgl'>('webgl2');
@@ -749,22 +751,30 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   // Load tiles progressively
   const loadTilesProgressively = useCallback(async (tiles: TileData[]) => {
     if (tiles.length === 0) {
+      setTileLoadPercent(0);
       setIsLoading(false);
       return;
     }
 
+    setTileLoadPercent(0);
     let loadedCount = 0;
     let successCount = 0;
     let failedCount = 0;
 
     console.log(`Starting progressive tile loading: ${tiles.length} tiles`);
 
+    const reportProgress = (count: number) => {
+      const pct = (count / tiles.length) * 100;
+      setTileLoadPercent(pct);
+      onLoadProgress?.(pct);
+    };
+
     for (const tile of tiles) {
       // Skip if already loaded
       if (loadedTilesRef.current.has(tile.tile_id)) {
         loadedCount++;
         successCount++;
-        onLoadProgress?.((loadedCount / tiles.length) * 100);
+        reportProgress(loadedCount);
         continue;
       }
 
@@ -777,10 +787,11 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
       }
 
       loadedCount++;
-      onLoadProgress?.((loadedCount / tiles.length) * 100);
+      reportProgress(loadedCount);
     }
 
     console.log(`Tile loading complete: ${successCount} succeeded, ${failedCount} failed, ${tiles.length} total`);
+    setTileLoadPercent(100);
     setIsLoading(false);
   }, [onLoadProgress, loadTile]);
 
@@ -1134,6 +1145,44 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* Full-screen Gaussian Splatting loading */}
+      {isLoading && (
+        <div
+          className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-4 px-6 text-center"
+          style={{
+            background: 'rgba(26, 26, 26, 0.94)',
+            backdropFilter: 'blur(10px)',
+          }}
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <span className="text-5xl" aria-hidden>
+            ✨
+          </span>
+          <h2 className="text-xl font-semibold text-white sm:text-2xl">Loading Gaussian Splatting</h2>
+          <p className="max-w-md text-sm text-white/65">
+            Streaming splat tiles and building the scene. Large reconstructions can take a few seconds for the first tiles to appear.
+          </p>
+          <div
+            className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/15 sm:max-w-sm"
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-blue-500 transition-[width] duration-300 ease-out"
+              style={{ width: `${Math.min(100, Math.max(tileLoadPercent, 4))}%` }}
+            />
+          </div>
+          <p className="font-mono text-xs text-white/50">
+            {tileLoadPercent < 1 ? 'Starting…' : `${Math.round(tileLoadPercent)}% · tiles`}
+          </p>
+          <div
+            className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white"
+            aria-hidden
+          />
+        </div>
+      )}
       
       {/* Stats overlay */}
       <div
@@ -1154,7 +1203,7 @@ export const GaussianViewer: React.FC<GaussianViewerProps> = ({
         <div>FPS: {fps}</div>
         <div>Gaussians: {visibleGaussians.toLocaleString()}</div>
         <div>Tiles: {loadedTilesRef.current.size}</div>
-        <div>Status: {isLoading ? 'Loading...' : 'Ready'}</div>
+        <div>Status: {isLoading ? 'Loading splats…' : 'Ready'}</div>
       </div>
 
       {/* No data message */}

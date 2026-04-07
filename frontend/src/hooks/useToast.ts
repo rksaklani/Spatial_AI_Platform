@@ -42,10 +42,21 @@ export function useToast() {
     return addToast('info', message, duration);
   }, [addToast]);
 
+  // Backward-compatible API used by some pages/components.
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration?: number) => {
+    return addToast(type, message, duration);
+  }, [addToast]);
+
+  const hideToast = useCallback((id: string) => {
+    removeToast(id);
+  }, [removeToast]);
+
   return {
     toasts,
     addToast,
     removeToast,
+    showToast,
+    hideToast,
     success,
     error,
     warning,

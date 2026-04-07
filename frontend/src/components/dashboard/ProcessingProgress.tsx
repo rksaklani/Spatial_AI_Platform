@@ -18,9 +18,12 @@ const PROCESSING_STAGES: ProcessingStage[] = [
   { name: 'training', label: 'Training (Gaussian Splatting)', icon: '🏗️' },
   { name: 'tiling', label: 'Generating Tiles', icon: '🧩' },
 ];
+const FINAL_STAGE_INDEX = PROCESSING_STAGES.length;
 
 function normalizeProcessingStep(step?: string | null): string {
   if (!step) return 'uploading';
+
+  if (['pending', 'queued'].includes(step)) return 'uploading';
 
   // Video pipeline steps
   if (['initializing', 'downloading', 'filtering_frames', 'uploading_frames', 'uploading_depth', 'uploading'].includes(step)) {
@@ -86,7 +89,30 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     enableWebSocket: true,
   });
 
-  const normalizedStep = normalizeProcessingStep(currentStep || currentStage);
+  const latestJob = jobs?.[0];
+
+  // Prefer latest job step first (usually freshest), then websocket/rest fallback.
+  const jobStep = latestJob?.current_step as string | undefined;
+  const effectiveStep =
+    (jobStep && jobStep !== 'pending' ? jobStep : undefined) ||
+    (currentStep && currentStep !== 'pending' ? currentStep : undefined) ||
+    jobStep ||
+    currentStep ||
+    currentStage ||
+    'pending';
+
+  const effectiveProgress =
+    progressPercent > 0
+      ? progressPercent
+      : (typeof latestJob?.progress_percent === 'number' ? latestJob.progress_percent : progress);
+
+  const isTerminalComplete =
+    latestJob?.status === 'completed' ||
+    progressComplete ||
+    effectiveStep === 'completed' ||
+    effectiveProgress >= 100;
+
+  const normalizedStep = isTerminalComplete ? 'completed' : normalizeProcessingStep(effectiveStep);
 
   useEffect(() => {
     if (!jobs || jobs.length === 0) return;
@@ -160,12 +186,19 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
     );
   }
 
-  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.name === normalizedStep);
+  const currentStageIndex =
+    normalizedStep === 'completed'
+      ? FINAL_STAGE_INDEX
+      : PROCESSING_STAGES.findIndex(s => s.name === normalizedStep);
   const completedStages = currentStageIndex >= 0 ? currentStageIndex : 0;
   
-  // Use real-time progress data when available
-  const displayProgress = progressPercent > 0 ? progressPercent : progress;
-  const displayStatusMessage = statusMessage || (currentStageIndex >= 0 ? PROCESSING_STAGES[currentStageIndex].label : 'Processing...');
+  const displayProgress = effectiveProgress;
+  const displayStatusMessage =
+    isTerminalComplete
+      ? 'Processing complete'
+      : effectiveStep === 'pending' || effectiveStep === 'queued'
+      ? 'Queued — waiting for worker to start'
+      : statusMessage || (currentStageIndex >= 0 ? PROCESSING_STAGES[currentStageIndex].label : 'Processing...');
 
   return (
     <div className="space-y-6">
@@ -188,12 +221,12 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Processing Scene</span>
-            <span className="text-text-primary font-medium">{Math.round(displayProgress)}%</span>
+            <span className="text-text-primary font-medium">{Math.round(isTerminalComplete ? 100 : displayProgress)}%</span>
           </div>
           <div className="h-2 bg-secondary-bg rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-500 ease-out"
-              style={{ width: `${displayProgress}%` }}
+              style={{ width: `${isTerminalComplete ? 100 : displayProgress}%` }}
             />
           </div>
         </div>
@@ -202,9 +235,9 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       {/* Stage indicators */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {PROCESSING_STAGES.map((stage, index) => {
-          const isActive = stage.name === normalizedStep;
-          const isCompleted = index < completedStages;
-          const isPending = index > completedStages;
+          const isActive = !isTerminalComplete && stage.name === normalizedStep;
+          const isCompleted = isTerminalComplete || index < completedStages;
+          const isPending = !isTerminalComplete && index > completedStages;
 
           return (
             <div
@@ -238,7 +271,7 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
       {/* Verification: show raw step + iterations */}
       <div className="text-xs text-text-muted flex flex-wrap gap-x-4 gap-y-1 justify-center">
         <span>
-          Step: <span className="font-mono text-text-secondary">{currentStep || currentStage || 'n/a'}</span>
+          Step: <span className="font-mono text-text-secondary">{effectiveStep || 'n/a'}</span>
         </span>
         {currentIteration !== undefined && totalIterations !== undefined && (
           <span>
