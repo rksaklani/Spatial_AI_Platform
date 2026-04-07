@@ -34,6 +34,8 @@ vi.mock('../../components/ModelViewer', () => ({
 }));
 
 vi.mock('../../components/viewer', () => ({
+  ViewerToolbar: () => <div data-testid="viewer-toolbar">Toolbar</div>,
+  AnnotationToolbar: () => <div data-testid="annotation-toolbar">Annotations</div>,
   AnnotationPreview: () => <div data-testid="annotation-preview">Preview</div>,
 }));
 
@@ -54,7 +56,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ id: 'test-scene-123' }),
+    useParams: () => ({ sceneId: 'test-scene-123' }),
   };
 });
 
@@ -175,9 +177,24 @@ describe('ViewerPage', () => {
     expect(screen.getByTestId('model-viewer')).toBeInTheDocument();
   });
 
+  it('renders viewer toolbar', () => {
+    renderViewer();
+    expect(screen.getByTestId('viewer-toolbar')).toBeInTheDocument();
+  });
+
+  it('renders annotation toolbar', () => {
+    renderViewer();
+    expect(screen.getByTestId('annotation-toolbar')).toBeInTheDocument();
+  });
+
   it('renders collaboration overlay', () => {
     renderViewer();
     expect(screen.getByTestId('collaboration-overlay')).toBeInTheDocument();
+  });
+
+  it('renders collaboration panel', () => {
+    renderViewer();
+    expect(screen.getByTestId('collaboration-panel')).toBeInTheDocument();
   });
 
   it('renders share button', () => {

@@ -50,14 +50,11 @@ class WebSocketService {
     this.setStatus('connecting');
 
     try {
-      // Use native WebSocket (not Socket.IO).
-      // Prefer explicit VITE_WS_URL, then VITE_WS_HOST/PORT, then current host.
-      const envWsUrl = import.meta.env.VITE_WS_URL as string | undefined;
+      // Use native WebSocket (not Socket.IO)
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname;
       const wsPort = import.meta.env.VITE_WS_PORT || '8000';
-      const wsBase = envWsUrl || `${wsProtocol}//${wsHost}:${wsPort}`;
-      const wsUrl = `${wsBase.replace(/\/$/, '')}/ws/scenes/${sceneId}/collaborate?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}/ws/scenes/${sceneId}/collaborate?token=${encodeURIComponent(token)}`;
 
       console.log('Connecting to WebSocket:', wsUrl);
 

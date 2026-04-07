@@ -41,20 +41,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     });
   };
 
-  const isViewable = scene.status === 'ready' || scene.status === 'completed';
-  const isProcessing = [
-    'uploaded',
-    'uploading',
-    'processing',
-    'extracting_frames',
-    'estimating_poses',
-    'generating_depth',
-    'reconstructing',
-    'tiling',
-    'queued_reconstruction',
-    'queued_tiling',
-  ].includes(scene.status);
-  const isFailed = scene.status === 'failed';
+  const isViewable = scene.status === 'completed';
+  const isProcessing = ['uploaded', 'processing', 'extracting_frames', 'estimating_poses', 'generating_depth', 'reconstructing', 'tiling'].includes(scene.status);
 
   const { data: jobs = [] } = useGetSceneJobsQuery(scene.sceneId, {
     pollingInterval: isProcessing ? 5000 : 0,

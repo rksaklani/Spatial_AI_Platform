@@ -119,26 +119,13 @@ function getStepLabel(step?: string): string {
   if (!step) return 'Processing';
   
   const labels: Record<string, string> = {
-    'initializing': 'Starting',
-    'downloading': 'Preparing Inputs',
     'extracting_frames': 'Extracting Frames',
-    'filtering_frames': 'Selecting Frames',
-    'uploading_frames': 'Uploading Frames',
-    'uploading_depth': 'Uploading Depth',
     'estimating_poses': 'Estimating Poses',
-    'pose_estimation': 'Estimating Poses',
-    'depth_estimation': 'Estimating Depth',
-    'generating_depth': 'Estimating Depth',
+    'estimating_depth': 'Estimating Depth',
     'training': 'Training',
     'reconstructing': 'Reconstructing',
-    'loading': 'Loading Model',
     'tiling': 'Tiling',
     'optimizing': 'Optimizing',
-    'generating_lod': 'Generating LOD',
-    'building_octree': 'Building Octree',
-    'saving_metadata': 'Saving Metadata',
-    'queued_reconstruction': 'Queued (Reconstruction)',
-    'queued_tiling': 'Queued (Tiling)',
   };
   
   return labels[step] || step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());

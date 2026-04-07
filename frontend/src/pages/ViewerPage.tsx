@@ -297,35 +297,14 @@ export function ViewerPage() {
     );
   }
 
-  const isSceneProcessing =
-    !!scene &&
-    [
-      'uploaded',
-      'uploading',
-      'processing',
-      'extracting_frames',
-      'estimating_poses',
-      'generating_depth',
-      'reconstructing',
-      'tiling',
-      'queued_reconstruction',
-      'queued_tiling',
-    ].includes(scene.status);
-
   // Check if scene is still processing
-  if (isSceneProcessing) {
-    const processingTitle = scene?.sourceType === 'video' ? 'Processing Video' : 'Processing Scene';
-    const processingDescription =
-      scene?.sourceType === 'video'
-        ? 'Your video is being converted to 3D. This may take 20-60 minutes.'
-        : 'Your scene is being prepared. This may take a few minutes.';
-
+  if (scene && scene.status === 'processing') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-primary-bg p-8">
         <div className="max-w-2xl w-full">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-text-primary mb-2">{processingTitle}</h2>
-            <p className="text-text-secondary mb-4">{processingDescription}</p>
+            <h2 className="text-2xl font-bold text-text-primary mb-2">Processing Video</h2>
+            <p className="text-text-secondary mb-4">Your video is being converted to 3D. This may take 20-60 minutes.</p>
             <p className="text-text-muted text-sm">You can close this page and come back later.</p>
           </div>
           

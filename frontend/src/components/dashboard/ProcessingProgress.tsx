@@ -18,6 +18,7 @@ const PROCESSING_STAGES: ProcessingStage[] = [
   { name: 'training', label: 'Training (Gaussian Splatting)', icon: '🏗️' },
   { name: 'tiling', label: 'Generating Tiles', icon: '🧩' },
 ];
+
 const FINAL_STAGE_INDEX = PROCESSING_STAGES.length;
 
 function normalizeProcessingStep(step?: string | null): string {
@@ -273,11 +274,9 @@ export function ProcessingProgress({ sceneId, onComplete, onError }: ProcessingP
         <span>
           Step: <span className="font-mono text-text-secondary">{effectiveStep || 'n/a'}</span>
         </span>
-        {currentIteration !== undefined && totalIterations !== undefined && (
-          <span>
-            Iter: <span className="font-mono text-text-secondary">{currentIteration}/{totalIterations}</span>
-          </span>
-        )}
+        <span>
+          Iterations: <span className="font-mono text-text-secondary">{currentIteration || 'n/a'} / {totalIterations || 'n/a'}</span>
+        </span>
       </div>
     </div>
   );
